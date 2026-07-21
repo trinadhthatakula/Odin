@@ -32,6 +32,12 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     api(libs.kotlinx.coroutines.android)
+
+    // kotlin("test-junit") (not bare kotlin("test")) so the kotlin.test.Test typealias binds to
+    // JUnit4 — Odin uses AGP's built-in Kotlin, so the Kotlin Gradle Plugin's test-framework
+    // auto-selection isn't present; the -junit variant pulls the backend (+junit) explicitly.
+    testImplementation(kotlin("test-junit"))
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 mavenPublishing {

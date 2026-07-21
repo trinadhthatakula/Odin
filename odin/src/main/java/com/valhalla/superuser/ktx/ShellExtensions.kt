@@ -10,18 +10,16 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Suspends until the Shell Job is complete and returns the result.
- * Replaces the archaic [Shell.Job.submit] callback hell.
+ * Suspends until this [Shell.Job] completes and returns its full [Shell.Result]
+ * (exit code + stdout + stderr preserved). Replaces the [Shell.Job.submit] callback.
+ *
+ * The continuation resumes on the job's completing worker thread (`submit(null, cb)`),
+ * so the caller's coroutine context governs dispatch — no `Dispatchers.Main` round-trip.
  */
 suspend fun Shell.Job.await(): Shell.Result = suspendCancellableCoroutine { cont ->
-    // Fix: ResultCallback is not a 'fun interface', so we must use an object expression.
-    submit(object : Shell.ResultCallback {
-        override fun onResult(out: Shell.Result) {
-            if (cont.isActive) {
-                cont.resume(out)
-            }
-        }
-    })
+    submit(null) { result ->
+        if (cont.isActive) cont.resume(result)
+    }
 }
 
 /**
@@ -56,23 +54,21 @@ fun Shell.Job.asFlow(): Flow<String> = callbackFlow {
 }
 
 /**
- * Gets the main shell instance purely via Coroutines, removing the need for
- * blocking [Shell.getShell] calls on the main thread.
+ * Gets the main shell instance via coroutines, without blocking the calling thread.
+ * Resumes exceptionally with the cause (or [NoShellException]) if shell init hard-fails.
  */
 suspend fun getShellAwait(): Shell = suspendCancellableCoroutine { cont ->
-    Shell.getShell(object : Shell.GetShellCallback {
-        override fun onShell(shell: Shell) {
-            if (cont.isActive) {
-                cont.resume(shell)
+    Shell.getShell(
+        object : Shell.GetShellCallback {
+            override fun onShell(shell: Shell) {
+                if (cont.isActive) cont.resume(shell)
             }
-        }
 
-        override fun onShellDied(error: Throwable?) {
-            if (cont.isActive) {
-                cont.resumeWithException(
-                    error ?: NoShellException("Root shell initialization failed")
-                )
+            override fun onShellDied(error: Throwable?) {
+                if (cont.isActive) {
+                    cont.resumeWithException(error ?: NoShellException("Root shell initialization failed"))
+                }
             }
         }
-    })
+    )
 }

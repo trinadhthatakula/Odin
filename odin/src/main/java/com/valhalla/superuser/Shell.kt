@@ -433,7 +433,7 @@ abstract class Shell : Closeable {
     /**
      * The callback used in [.getShell].
      */
-    interface GetShellCallback {
+    fun interface GetShellCallback {
         /**
          * @param shell the `Shell` obtained in the asynchronous operation.
          */
@@ -450,7 +450,7 @@ abstract class Shell : Closeable {
     /**
      * The callback to receive a result in [Job.submit].
      */
-    interface ResultCallback {
+    fun interface ResultCallback {
         /**
          * @param out the result of the job.
          */

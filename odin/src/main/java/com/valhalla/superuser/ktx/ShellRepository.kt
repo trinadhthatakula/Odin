@@ -56,6 +56,9 @@ class RealShellRepository : ShellRepository {
                     Result.failure(IOException("Command failed with code ${jobResult.code}: $errorMsg"))
                 }
             } catch (e: Exception) {
+                // Rethrow cancellation so structured concurrency is preserved (mirror isRootGranted);
+                // any other failure becomes a Result.failure.
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Result.failure(e)
             }
         }
