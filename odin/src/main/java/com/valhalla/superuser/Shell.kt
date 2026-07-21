@@ -397,13 +397,13 @@ public abstract class Shell : Closeable {
      * An initializer will be constructed and the callbacks will be invoked each time a new
      * shell is created.
      */
-    public class Initializer {
+    public open class Initializer {
         /**
          * Called when a new shell is constructed.
          * @param shell the newly constructed shell.
          * @return `false` when initialization fails, otherwise `true`.
          */
-        public fun onInit(shell: Shell): Boolean {
+        public open fun onInit(shell: Shell): Boolean {
             return true
         }
     }

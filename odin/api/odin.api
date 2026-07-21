@@ -80,13 +80,9 @@ public abstract interface class com/valhalla/superuser/Shell$GetShellCallback {
 	public fun onShellDied (Ljava/lang/Throwable;)V
 }
 
-public final class com/valhalla/superuser/Shell$GetShellCallback$DefaultImpls {
-	public static fun onShellDied (Lcom/valhalla/superuser/Shell$GetShellCallback;Ljava/lang/Throwable;)V
-}
-
-public final class com/valhalla/superuser/Shell$Initializer {
+public class com/valhalla/superuser/Shell$Initializer {
 	public fun <init> ()V
-	public final fun onInit (Lcom/valhalla/superuser/Shell;)Z
+	public fun onInit (Lcom/valhalla/superuser/Shell;)Z
 }
 
 public abstract class com/valhalla/superuser/Shell$Job {
@@ -125,10 +121,6 @@ public abstract interface class com/valhalla/superuser/Shell$ResultCallback {
 public abstract interface class com/valhalla/superuser/Shell$Task {
 	public abstract fun run (Ljava/io/OutputStream;Ljava/io/InputStream;Ljava/io/InputStream;)V
 	public fun shellDied ()V
-}
-
-public final class com/valhalla/superuser/Shell$Task$DefaultImpls {
-	public static fun shellDied (Lcom/valhalla/superuser/Shell$Task;)V
 }
 
 public final class com/valhalla/superuser/ShellUtils {

@@ -13,6 +13,10 @@ kotlin {
     explicitApi()
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_21)
+        // Emit real JVM default methods for interface members (no DefaultImpls classes / no
+        // compatibility bridges) — better Java interop. Set at the API freeze because switching
+        // this AFTER publish would be an ABI break.
+        freeCompilerArgs.add("-Xjvm-default=all")
     }
 }
 
