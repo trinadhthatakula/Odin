@@ -10,8 +10,8 @@ import java.io.IOException
  * Inject this into your ViewModels via Koin.
  * DO NOT use static Shell.shell calls in your UI layer.
  */
-interface ShellRepository {
-    suspend fun isRootGranted(): Boolean
+public interface ShellRepository {
+    public suspend fun isRootGranted(): Boolean
 
     /**
      * Runs [commands] as one shell job and returns a lossless [ShellResult].
@@ -21,22 +21,22 @@ interface ShellRepository {
      * A completed command returns its real exit code (including non-zero). `CancellationException`
      * always propagates. `vararg` runs as a single job → one combined [ShellResult] (last-command code).
      */
-    suspend fun exec(vararg commands: String): ShellResult
+    public suspend fun exec(vararg commands: String): ShellResult
 
     @Deprecated(
         "Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.",
         ReplaceWith("exec(command)")
     )
-    suspend fun runCommand(command: String): Result<List<String>>
+    public suspend fun runCommand(command: String): Result<List<String>>
 
     @Deprecated(
         "Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.",
         ReplaceWith("exec(*commands)")
     )
-    suspend fun runCommands(vararg commands: String): Result<List<String>>
+    public suspend fun runCommands(vararg commands: String): Result<List<String>>
 }
 
-class RealShellRepository : ShellRepository {
+public class RealShellRepository : ShellRepository {
 
     // Lazy, bounded, failure-safe root check. A hard shell-init failure now resumes getShellAwait()
     // exceptionally (via onShellDied); the timeout additionally covers a worker that never returns.
@@ -77,7 +77,7 @@ class RealShellRepository : ShellRepository {
         else Result.failure(IOException("Command failed with code ${r.code}: ${r.stderr.joinToString("\n")}"))
     }
 
-    companion object {
+    private companion object {
         // Upper bound for shell-init before the root probe gives up and reports "no root".
         private const val SHELL_INIT_TIMEOUT_MS = 10_000L
     }

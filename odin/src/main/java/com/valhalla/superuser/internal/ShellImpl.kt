@@ -22,7 +22,7 @@ import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.Volatile
 
-class ShellImpl(builder: BuilderImpl, private val process: Process) : Shell() {
+internal class ShellImpl(builder: BuilderImpl, private val process: Process) : Shell() {
     @Volatile
     override var status: Int
         private set

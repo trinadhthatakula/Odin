@@ -8,6 +8,7 @@ coreKtx = "1.19.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxCoroutinesTest = "1.10.2"
 vanniktechMavenPublish = "0.34.0"
+binaryCompatibilityValidator = "0.17.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -17,3 +18,4 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 [plugins]
 android-library = { id = "com.android.library", version.ref = "agp" }
 vanniktech-maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }
+binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binaryCompatibilityValidator" }

@@ -8,7 +8,7 @@ import java.io.IOException
 import java.lang.reflect.Constructor
 
 @RestrictTo(RestrictTo.Scope.LIBRARY)
-class BuilderImpl : Shell.Builder() {
+internal class BuilderImpl : Shell.Builder() {
 
     var timeout: Long = 20
     private var flags = 0

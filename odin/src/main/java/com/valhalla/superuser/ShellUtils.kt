@@ -15,13 +15,16 @@ import java.io.InputStream
  * **You have been warned!!**
  */
 @Suppress("unused")
-object ShellUtils {
+public object ShellUtils {
     /**
      * Test whether the list is `null` or empty or all elements are empty strings.
+     *
+     * Internal helper used by [fastCmd]. The public, deduplicated version is the
+     * `List<String?>?.isValidOutput()` extension in `com.valhalla.superuser.utils`.
      * @param out the output of a shell command.
      * @return `false` if the list is `null` or empty or all elements are empty strings.
      */
-    fun isValidOutput(out: List<String?>): Boolean {
+    internal fun isValidOutput(out: List<String?>): Boolean {
         return out.any { !it.isNullOrEmpty() }
     }
 
@@ -30,7 +33,7 @@ object ShellUtils {
      * @param commands the commands.
      * @return the last line of the output of the command, empty string if no output is available.
      */
-    fun fastCmd(vararg commands: String?): String {
+    public fun fastCmd(vararg commands: String?): String {
         return fastCmd(Shell.shell, *commands)
     }
 
@@ -41,7 +44,7 @@ object ShellUtils {
      * @return the last line of the output of t
      * the command, empty string if no output is available.
      */
-    fun fastCmd(shell: Shell, vararg commands: String?): String {
+    public fun fastCmd(shell: Shell, vararg commands: String?): String {
         val out = shell.newJob().apply {
             commands.forEach { cmd ->
                 if (cmd != null) add(cmd)
@@ -56,7 +59,7 @@ object ShellUtils {
      * @param commands the commands.
      * @return `true` if the commands succeed.
      */
-    fun fastCmdResult(vararg commands: String?): Boolean {
+    public fun fastCmdResult(vararg commands: String?): Boolean {
         return fastCmdResult(Shell.shell, *commands)
     }
 
@@ -66,7 +69,7 @@ object ShellUtils {
      * @param commands the commands.
      * @return `true` if the commands succeed.
      */
-    fun fastCmdResult(shell: Shell, vararg commands: String?): Boolean {
+    public fun fastCmdResult(shell: Shell, vararg commands: String?): Boolean {
         return shell.newJob().apply {
             commands.forEach { cmd ->
                 if (cmd != null) add(cmd)
@@ -79,7 +82,7 @@ object ShellUtils {
      * Check if current thread is main thread.
      * @return `true` if the current thread is the main thread.
      */
-    fun onMainThread(): Boolean {
+    public fun onMainThread(): Boolean {
         return Looper.getMainLooper().thread === Thread.currentThread()
     }
 
@@ -87,7 +90,7 @@ object ShellUtils {
      * Discard all data currently available in an [InputStream].
      * @param inputStream the [InputStream] to be cleaned.
      */
-    fun cleanInputStream(inputStream: InputStream) {
+    public fun cleanInputStream(inputStream: InputStream) {
         try {
             while (inputStream.available() != 0) inputStream.skip(inputStream.available().toLong())
         } catch (_: IOException) {
@@ -98,11 +101,13 @@ object ShellUtils {
 
     /**
      * Format string to quoted and escaped string suitable for shell commands.
+     *
+     * Internal helper used by the engine. The public, deduplicated version is the
+     * `String.escapeForShell()` extension in `com.valhalla.superuser.utils`.
      * @param s the string to be formatted.
      * @return the formatted string.
      */
-
-    fun escapedString(s: String): String {
+    internal fun escapedString(s: String): String {
         val sb = StringBuilder()
         sb.append(SINGLE_QUOTE)
         val len = s.length
@@ -124,7 +129,7 @@ object ShellUtils {
      * @param v an integer.
      * @return the greatest common divisor.
      */
-    fun gcd(u: Long, v: Long): Long {
+    public fun gcd(u: Long, v: Long): Long {
         var u = u
         var v = v
         if (u == 0L) return v

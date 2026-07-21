@@ -16,7 +16,7 @@ public data class ShellResult(
     val stderr: List<String>,
 ) {
     /** `true` iff the command completed with exit code 0. */
-    val isSuccess: Boolean get() = code == 0
+    public val isSuccess: Boolean get() = code == 0
 
     public companion object {
         /** The job never executed (dead shell / not run). See [Shell.Result.JOB_NOT_EXECUTED]. */

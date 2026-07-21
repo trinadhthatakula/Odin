@@ -16,24 +16,22 @@ import java.util.concurrent.Executor
  * The `CallbackList` itself does not have a data store. If you need one, you can provide a
  * base [List], and this class will delegate its calls to it.
  */
-abstract class CallbackList<E>
+public abstract class CallbackList<E>
 /**
  * [.onAddElement] runs with the executor; no backing list.
- */ protected constructor(
+ *
+ * Internal: the executor-taking entry point is module-private so it does not leak the
+ * internal `UiThreadHandler` default into the public/protected surface. In-module callers
+ * (e.g. `Shell.Job.asFlow`) use it directly; external subclassers use the protected
+ * no-executor constructor below.
+ */ internal constructor(
     protected var mExecutor: Executor = UiThreadHandler.executor,
     protected var mBase: MutableList<E?>? = null
 ) : AbstractList<E?>() {
     /**
-     * [.onAddElement] runs on the main thread; sets a backing list.
+     * Subclass entry point: [.onAddElement] runs on the main thread; optional backing list.
      */
-    protected constructor(base: MutableList<E?>?) : this(UiThreadHandler.executor, base)
-
-    /**
-     * [.onAddElement] runs with the executor; sets a backing list.
-     */
-    /**
-     * [.onAddElement] runs on the main thread; no backing list.
-     */
+    protected constructor(base: MutableList<E?>? = null) : this(UiThreadHandler.executor, base)
 
     /**
      * The callback when a new element is added.
@@ -43,7 +41,7 @@ abstract class CallbackList<E>
      * Which thread it runs on depends on which constructor is used to construct the instance.
      * @param e the new element added to the list.
      */
-    abstract fun onAddElement(e: E?)
+    public abstract fun onAddElement(e: E?)
 
     /**
      * @see List.get

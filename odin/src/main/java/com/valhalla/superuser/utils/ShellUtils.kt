@@ -11,7 +11,7 @@ import com.valhalla.superuser.ktx.await
 /**
  * Checks if the output list contains valid data.
  */
-fun List<String?>?.isValidOutput(): Boolean {
+public fun List<String?>?.isValidOutput(): Boolean {
     return this?.any { !it.isNullOrEmpty() } == true
 }
 
@@ -19,7 +19,7 @@ fun List<String?>?.isValidOutput(): Boolean {
  * Escapes a string for use in a shell command.
  * Replaces `ShellUtils.escapedString(str)`.
  */
-fun String.escapeForShell(): String {
+public fun String.escapeForShell(): String {
     return "'" + this.replace("'", "'\\''") + "'"
 }
 
@@ -27,7 +27,7 @@ fun String.escapeForShell(): String {
  * Quickly runs a command and returns the first line of output or empty string.
  * Now a suspend function to prevent blocking the Main Thread.
  */
-suspend fun Shell.fastCmd(vararg commands: String): String {
+public suspend fun Shell.fastCmd(vararg commands: String): String {
     val result = this.newJob().add(*commands).to(ArrayList()).await()
     val out = result.out
     return if (out.isValidOutput()) out.lastOrNull() ?: "" else ""
@@ -36,6 +36,6 @@ suspend fun Shell.fastCmd(vararg commands: String): String {
 /**
  * Quickly checks if a command succeeds (exit code 0).
  */
-suspend fun Shell.fastCmdResult(vararg commands: String): Boolean {
+public suspend fun Shell.fastCmdResult(vararg commands: String): Boolean {
     return this.newJob().add(*commands).to(ArrayList(), null).await().isSuccess
 }

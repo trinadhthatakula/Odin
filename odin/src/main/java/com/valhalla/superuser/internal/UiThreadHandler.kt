@@ -15,7 +15,7 @@ import java.util.concurrent.Executor
  * Uses Coroutines to dispatch to the Main thread.
  */
 @Suppress("unused")
-object UiThreadHandler {
+internal object UiThreadHandler {
 
     // We keep the Handler for edge cases where strict Looper access is needed,
     // but prefer Dispatchers.Main

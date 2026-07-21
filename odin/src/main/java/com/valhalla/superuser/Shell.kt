@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit
  *  * [.cmd]
  *
  */
-abstract class Shell : Closeable {
+public abstract class Shell : Closeable {
 
     /* Preserve 2 due to historical reasons */
     @Retention(AnnotationRetention.SOURCE)
@@ -52,7 +52,7 @@ abstract class Shell : Closeable {
      * Return whether the shell is still alive.
      * @return `true` if the shell is still alive.
      */
-    abstract val isAlive: Boolean
+    public abstract val isAlive: Boolean
 
     /**
      * Execute a low-level [Task] using the shell. USE THIS METHOD WITH CAUTION!
@@ -70,14 +70,14 @@ abstract class Shell : Closeable {
      * @throws IOException I/O errors when doing operations with STDIN/STDOUT/STDERR
      */
     @Throws(IOException::class)
-    abstract fun execTask(task: Task)
+    public abstract fun execTask(task: Task)
 
     /**
      * Submits a low-level [Task] for execution in a queue of the shell.
      * @param task the desired task.
      * @see .execTask
      */
-    abstract fun submitTask(task: Task)
+    public abstract fun submitTask(task: Task)
 
     /**
      * Construct a new [Job] that uses the shell for execution.
@@ -88,12 +88,12 @@ abstract class Shell : Closeable {
      * [Job.to] or [Job.to].
      * @return a job that the developer can execute or submit later.
      */
-    abstract fun newJob(): Job
+    public abstract fun newJob(): Job
 
     @get:Status
-    abstract val status: Int
+    public abstract val status: Int
 
-    val isRoot: Boolean
+    public val isRoot: Boolean
         /**
          * Return whether the shell has root access.
          * @return `true` if the shell has root access.
@@ -117,7 +117,7 @@ abstract class Shell : Closeable {
      * @throws InterruptedException if interrupted while waiting.
      */
     @Throws(IOException::class, InterruptedException::class)
-    abstract fun waitAndClose(timeout: Long, unit: TimeUnit): Boolean
+    public abstract fun waitAndClose(timeout: Long, unit: TimeUnit): Boolean
 
     /**
      * Wait indefinitely for any current/pending tasks to finish before closing this shell
@@ -125,7 +125,7 @@ abstract class Shell : Closeable {
      * @throws IOException if an I/O error occurs.
      */
     @Throws(IOException::class)
-    fun waitAndClose() {
+    public fun waitAndClose() {
         while (true) {
             try {
                 if (waitAndClose(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) break
@@ -148,7 +148,7 @@ abstract class Shell : Closeable {
      *
      * Do not subclass this class! Use [.create] to get a new Builder object.
      */
-    abstract class Builder {
+    public abstract class Builder {
         internal var utils: Utils? = null
 
         /**
@@ -159,7 +159,7 @@ abstract class Shell : Closeable {
          * @return this Builder object for chaining of calls.
          */
         @SafeVarargs
-        fun setInitializers(vararg classes: Class<out Initializer?>): Builder {
+        public fun setInitializers(vararg classes: Class<out Initializer?>): Builder {
             (this as BuilderImpl).setInitializersImpl(classes)
             return this
         }
@@ -171,7 +171,7 @@ abstract class Shell : Closeable {
          * [.FLAG_NON_ROOT_SHELL] or [.FLAG_MOUNT_MASTER]
          * @return this Builder object for chaining of calls.
          */
-        abstract fun setFlags(@ConfigFlags flags: Int): Builder
+        public abstract fun setFlags(@ConfigFlags flags: Int): Builder
 
         /**
          * Set the maximum time to wait for shell verification.
@@ -183,7 +183,7 @@ abstract class Shell : Closeable {
          * The default timeout is 20 seconds.
          * @return this Builder object for chaining of calls.
          */
-        abstract fun setTimeout(timeout: Long): Builder
+        public abstract fun setTimeout(timeout: Long): Builder
 
         /**
          * Set the commands that will be used to create a new `Shell`.
@@ -191,7 +191,7 @@ abstract class Shell : Closeable {
          * a new [Process].
          * @return this Builder object for chaining of calls.
          */
-        abstract fun setCommands(vararg commands: String?): Builder
+        public abstract fun setCommands(vararg commands: String?): Builder
 
         /**
          * Combine all of the options that have been set and build a new `Shell` instance.
@@ -220,7 +220,7 @@ abstract class Shell : Closeable {
          * @throws NoShellException impossible to construct a [Shell] instance, or
          * initialization failed when using the configured [Initializer]s.
          */
-        abstract fun build(): Shell
+        public abstract fun build(): Shell
 
         /**
          * Combine all of the options that have been set and build a new `Shell` instance
@@ -231,7 +231,7 @@ abstract class Shell : Closeable {
          * @throws NoShellException the provided command cannot create a [Shell] instance, or
          * initialization failed when using the configured [Initializer]s.
          */
-        fun build(vararg commands: String?): Shell {
+        public fun build(vararg commands: String?): Shell {
             return setCommands(*commands).build()
         }
 
@@ -243,14 +243,14 @@ abstract class Shell : Closeable {
          * @throws NoShellException the provided process is not a valid shell, or
          * initialization failed when using the configured [Initializer]s.
          */
-        abstract fun build(process: Process?): Shell
+        public abstract fun build(process: Process?): Shell
 
-        companion object {
+        public companion object {
             /**
              * Create a new [Builder].
              * @return a new Builder object.
              */
-            fun create(): Builder {
+            public fun create(): Builder {
                 return BuilderImpl()
             }
         }
@@ -259,20 +259,20 @@ abstract class Shell : Closeable {
     /**
      * The result of a [Job].
      */
-    abstract class Result {
+    public abstract class Result {
         /**
          * Get the output of STDOUT.
          * @return a list of strings that stores the output of STDOUT. Empty list if no output
          * is available.
          */
-        abstract val out: MutableList<String?>
+        public abstract val out: MutableList<String?>
 
         /**
          * Get the output of STDERR.
          * @return a list of strings that stores the output of STDERR. Empty list if no output
          * is available.
          */
-        abstract val err: MutableList<String?>
+        public abstract val err: MutableList<String?>
 
         /**
          * Get the return code of the job.
@@ -280,9 +280,9 @@ abstract class Shell : Closeable {
          * properly, the code should range from 0-255. If the job fails to execute, it will return
          * [.JOB_NOT_EXECUTED].
          */
-        abstract val code: Int
+        public abstract val code: Int
 
-        val isSuccess: Boolean
+        public val isSuccess: Boolean
             /**
              * Whether the job succeeded.
              * `getCode() == 0`.
@@ -291,17 +291,17 @@ abstract class Shell : Closeable {
             get() = this.code == 0
 
         /** STDOUT with null lines filtered out (non-null convenience view of [out]). */
-        val stdout: List<String> get() = out.filterNotNull()
+        public val stdout: List<String> get() = out.filterNotNull()
 
         /** STDERR with null lines filtered out (non-null convenience view of [err]). */
-        val stderr: List<String> get() = err.filterNotNull()
+        public val stderr: List<String> get() = err.filterNotNull()
 
-        companion object {
+        public companion object {
             /**
              * This code indicates that the job was not executed, and the outputs are all empty.
              * Constant value: {@value}.
              */
-            const val JOB_NOT_EXECUTED: Int = -1
+            public const val JOB_NOT_EXECUTED: Int = -1
         }
     }
 
@@ -312,13 +312,13 @@ abstract class Shell : Closeable {
      * All operations added in [.add] and [.add] will be
      * executed in the order of addition.
      */
-    abstract class Job {
+    public abstract class Job {
         /**
          * Store output of STDOUT to a specific list.
          * @param stdout the list to store STDOUT. Pass `null` to omit all outputs.
          * @return this Job object for chaining of calls.
          */
-        abstract fun to(stdout: MutableList<String?>?): Job
+        public abstract fun to(stdout: MutableList<String?>?): Job
 
         /**
          * Store output of STDOUT and STDERR to specific lists.
@@ -326,14 +326,14 @@ abstract class Shell : Closeable {
          * @param stderr the list to store STDERR. Pass `null` to omit STDERR.
          * @return this Job object for chaining of calls.
          */
-        abstract fun to(stdout: MutableList<String?>?, stderr: MutableList<String?>?): Job
+        public abstract fun to(stdout: MutableList<String?>?, stderr: MutableList<String?>?): Job
 
         /**
          * Add a new operation running commands.
          * @param cmds the commands to run.
          * @return this Job object for chaining of calls.
          */
-        abstract fun add(vararg cmds: String): Job
+        public abstract fun add(vararg cmds: String): Job
 
         /**
          * Add a new operation serving an InputStream to STDIN.
@@ -348,13 +348,13 @@ abstract class Shell : Closeable {
          * The stream will be closed after consumption.
          * @return this Job object for chaining of calls.
          */
-        abstract fun add(inputStream: InputStream): Job
+        public abstract fun add(inputStream: InputStream): Job
 
         /**
          * Execute the job immediately and returns the result.
          * @return the result of the job.
          */
-        abstract fun exec(): Result
+        public abstract fun exec(): Result
 
         /**
          * Submit the job to an internal queue to run in the background.
@@ -362,7 +362,7 @@ abstract class Shell : Closeable {
          * @param cb the callback to receive the result of the job.
          */
         @JvmOverloads
-        fun submit(cb: ResultCallback? = null) {
+        public fun submit(cb: ResultCallback? = null) {
             submit(UiThreadHandler.executor, cb)
         }
 
@@ -373,13 +373,13 @@ abstract class Shell : Closeable {
          * Pass `null` to run the callback on the same thread executing the job.
          * @param cb the callback to receive the result of the job.
          */
-        abstract fun submit(executor: Executor?, cb: ResultCallback?)
+        public abstract fun submit(executor: Executor?, cb: ResultCallback?)
 
         /**
          * Submit the job to an internal queue to run in the background.
          * @return a [Future] to get the result of the job later.
          */
-        abstract fun enqueue(): Future<Result?>
+        public abstract fun enqueue(): Future<Result?>
     }
 
     /**
@@ -397,13 +397,13 @@ abstract class Shell : Closeable {
      * An initializer will be constructed and the callbacks will be invoked each time a new
      * shell is created.
      */
-    class Initializer {
+    public class Initializer {
         /**
          * Called when a new shell is constructed.
          * @param shell the newly constructed shell.
          * @return `false` when initialization fails, otherwise `true`.
          */
-        fun onInit(shell: Shell): Boolean {
+        public fun onInit(shell: Shell): Boolean {
             return true
         }
     }
@@ -414,7 +414,7 @@ abstract class Shell : Closeable {
     /**
      * A task that can be executed by a shell with the method [.execTask].
      */
-    interface Task {
+    public interface Task {
         /**
          * This method will be called when a task is executed by a shell.
          * Calling [Closeable.close] on any stream is NOP (does nothing).
@@ -424,7 +424,7 @@ abstract class Shell : Closeable {
          * @throws IOException I/O errors when doing operations with STDIN/STDOUT/STDERR
          */
         @Throws(IOException::class)
-        fun run(
+        public fun run(
             stdin: OutputStream,
             stdout: InputStream,
             stderr: InputStream
@@ -433,44 +433,44 @@ abstract class Shell : Closeable {
         /**
          * This method will be called when a shell is unable to execute this task.
          */
-        fun shellDied() {}
+        public fun shellDied() {}
     }
 
     /**
      * The callback used in [.getShell].
      */
-    fun interface GetShellCallback {
+    public fun interface GetShellCallback {
         /**
          * @param shell the `Shell` obtained in the asynchronous operation.
          */
-        fun onShell(shell: Shell)
+        public fun onShell(shell: Shell)
 
         /**
          * Called when the shell could NOT be created (hard init failure). Default no-op keeps this
          * source- and binary-compatible; callers that await a shell (e.g. getShellAwait) should
          * override it to fail fast instead of suspending forever.
          */
-        fun onShellDied(error: Throwable?) {}
+        public fun onShellDied(error: Throwable?) {}
     }
 
     /**
      * The callback to receive a result in [Job.submit].
      */
-    fun interface ResultCallback {
+    public fun interface ResultCallback {
         /**
          * @param out the result of the job.
          */
-        fun onResult(out: Result)
+        public fun onResult(out: Result)
     }
 
-    companion object {
+    public companion object {
         /**
          * Shell status: Unknown. One possible result of [.getStatus].
          *
          *
          * Constant value {@value}.
          */
-        const val UNKNOWN: Int = -1
+        public const val UNKNOWN: Int = -1
 
         /**
          * Shell status: Non-root shell. One possible result of [.getStatus].
@@ -478,7 +478,7 @@ abstract class Shell : Closeable {
          *
          * Constant value {@value}.
          */
-        const val NON_ROOT_SHELL: Int = 0
+        public const val NON_ROOT_SHELL: Int = 0
 
         /**
          * Shell status: Root shell. One possible result of [.getStatus].
@@ -486,7 +486,7 @@ abstract class Shell : Closeable {
          *
          * Constant value {@value}.
          */
-        const val ROOT_SHELL: Int = 1
+        public const val ROOT_SHELL: Int = 1
 
         /**
          * If set, create a non-root shell.
@@ -494,7 +494,7 @@ abstract class Shell : Closeable {
          *
          * Constant value {@value}.
          */
-        const val FLAG_NON_ROOT_SHELL: Int = (1 shl 0)
+        public const val FLAG_NON_ROOT_SHELL: Int = (1 shl 0)
 
         /**
          * If set, create a root shell with the `--mount-master` option.
@@ -502,7 +502,7 @@ abstract class Shell : Closeable {
          *
          * Constant value {@value}.
          */
-        const val FLAG_MOUNT_MASTER: Int = (1 shl 1)
+        public const val FLAG_MOUNT_MASTER: Int = (1 shl 1)
 
         /**
          * The [Executor] that manages all worker threads used in `libsu`.
@@ -512,13 +512,13 @@ abstract class Shell : Closeable {
          * each `Shell` instance requires at least 3 threads to operate properly.
          */
         @JvmField
-        var EXECUTOR: Executor = Executors.newCachedThreadPool()
+        public var EXECUTOR: Executor = Executors.newCachedThreadPool()
 
         /**
          * Set to `true` to enable verbose logging throughout the library.
          */
         @JvmField
-        var enableVerboseLogging: Boolean = false
+        public var enableVerboseLogging: Boolean = false
 
         /**
          * This flag exists for compatibility reasons. DO NOT use unless necessary.
@@ -536,7 +536,7 @@ abstract class Shell : Closeable {
          * The behavior of this flag is unintuitive and error prone.
          */
         @JvmField
-        var enableLegacyStderrRedirection: Boolean = false
+        public var enableLegacyStderrRedirection: Boolean = false
 
         /**
          * Override the default [Builder].
@@ -545,11 +545,11 @@ abstract class Shell : Closeable {
          * This shell builder will be used to construct the main shell.
          * Set this before the main shell is created anywhere in the program.
          */
-        fun setDefaultBuilder(builder: Builder?) {
+        public fun setDefaultBuilder(builder: Builder?) {
             MainShell.setBuilder(builder)
         }
 
-        val shell: Shell
+        public val shell: Shell
             /**
              * Get the main shell instance.
              *
@@ -581,7 +581,7 @@ abstract class Shell : Closeable {
          * The cached/created shell instance is returned to the callback on the main thread.
          * @param callback invoked when a shell is acquired.
          */
-        fun getShell(callback: GetShellCallback) {
+        public fun getShell(callback: GetShellCallback) {
             MainShell.get(UiThreadHandler.executor, callback)
         }
 
@@ -596,11 +596,11 @@ abstract class Shell : Closeable {
          * If `null` is passed, the callback can run on any thread.
          * @param callback invoked when a shell is acquired.
          */
-        fun getShell(executor: Executor?, callback: GetShellCallback) {
+        public fun getShell(executor: Executor?, callback: GetShellCallback) {
             MainShell.get(executor, callback)
         }
 
-        val cachedShell: Shell?
+        public val cachedShell: Shell?
             /**
              * Get the cached main shell.
              * @return a `Shell` instance. `null` can be returned either when
@@ -608,7 +608,7 @@ abstract class Shell : Closeable {
              */
             get() = MainShell.cached
 
-        val isAppGrantedRoot: Boolean?
+        public val isAppGrantedRoot: Boolean?
             /**
              * Whether the application has access to root.
              *
@@ -642,7 +642,7 @@ abstract class Shell : Closeable {
          * @return a job that the developer can execute or submit later.
          * @see Job.add
          */
-        fun cmd(vararg commands: String): Job {
+        public fun cmd(vararg commands: String): Job {
             return MainShell.newJob(*commands)
         }
 
@@ -662,7 +662,7 @@ abstract class Shell : Closeable {
          * possible to construct [Job]s before the program has created any root shell.
          * @see Job.add
          */
-        fun cmd(`in`: InputStream): Job {
+        public fun cmd(`in`: InputStream): Job {
             return MainShell.newJob(`in`)
         }
 
@@ -671,7 +671,7 @@ abstract class Shell : Closeable {
      * ***********/
 
         @Deprecated("Not used anymore")
-        const val ROOT_MOUNT_MASTER: Int = 2
+        public const val ROOT_MOUNT_MASTER: Int = 2
 
         /**
          * For compatibility, setting this flag will set [.enableLegacyStderrRedirection]
@@ -680,7 +680,7 @@ abstract class Shell : Closeable {
         @Deprecated(
             """not used anymore"""
         )
-        const val FLAG_REDIRECT_STDERR: Int = (1 shl 3)
+        public const val FLAG_REDIRECT_STDERR: Int = (1 shl 3)
 
         /**
          * Whether the application has access to root.
@@ -694,7 +694,7 @@ abstract class Shell : Closeable {
          * @return whether the application has access to root.
          */
         @Deprecated("please switch to {@link #isAppGrantedRoot()}")
-        fun rootAccess(): Boolean {
+        public fun rootAccess(): Boolean {
             return isAppGrantedRoot == java.lang.Boolean.TRUE
         }
     }

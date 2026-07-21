@@ -15,14 +15,14 @@ import com.valhalla.superuser.Shell
 import java.io.IOException
 import java.util.concurrent.Executor
 
-abstract class RootService : ContextWrapper(null) {
+public abstract class RootService : ContextWrapper(null) {
 
-    companion object {
-        const val CATEGORY_DAEMON_MODE = "com.valhalla.superuser.DAEMON_MODE"
+    public companion object {
+        public const val CATEGORY_DAEMON_MODE: String = "com.valhalla.superuser.DAEMON_MODE"
 
         @MainThread
         @JvmStatic
-        fun bind(intent: Intent, executor: Executor, conn: ServiceConnection) {
+        public fun bind(intent: Intent, executor: Executor, conn: ServiceConnection) {
             if (Utils.isRootImpossible()) return
             val task = bindOrTask(intent, executor, conn)
             if (task != null) {
@@ -32,25 +32,25 @@ abstract class RootService : ContextWrapper(null) {
 
         @MainThread
         @JvmStatic
-        fun bind(intent: Intent, conn: ServiceConnection) {
+        public fun bind(intent: Intent, conn: ServiceConnection) {
             bind(intent, UiThreadHandler.executor, conn)
         }
 
         @MainThread
         @JvmStatic
-        fun bindOrTask(intent: Intent, executor: Executor, conn: ServiceConnection): Shell.Task? {
+        public fun bindOrTask(intent: Intent, executor: Executor, conn: ServiceConnection): Shell.Task? {
             return RootServiceManager.getInstance().createBindTask(intent, executor, conn)
         }
 
         @MainThread
         @JvmStatic
-        fun unbind(conn: ServiceConnection) {
+        public fun unbind(conn: ServiceConnection) {
             RootServiceManager.getInstance().unbind(conn)
         }
 
         @MainThread
         @JvmStatic
-        fun stop(intent: Intent) {
+        public fun stop(intent: Intent) {
             if (Utils.isRootImpossible()) return
             val task = stopOrTask(intent)
             if (task != null) {
@@ -60,7 +60,7 @@ abstract class RootService : ContextWrapper(null) {
 
         @MainThread
         @JvmStatic
-        fun stopOrTask(intent: Intent): Shell.Task? {
+        public fun stopOrTask(intent: Intent): Shell.Task? {
             return RootServiceManager.getInstance().createStopTask(intent)
         }
 
@@ -92,7 +92,7 @@ abstract class RootService : ContextWrapper(null) {
         return base
     }
 
-    open fun getComponentName(): ComponentName {
+    public open fun getComponentName(): ComponentName {
         return ComponentName(this, javaClass)
     }
 
@@ -100,19 +100,19 @@ abstract class RootService : ContextWrapper(null) {
         return Utils.context
     }
 
-    abstract fun onBind(intent: Intent): IBinder?
+    public abstract fun onBind(intent: Intent): IBinder?
 
-    open fun onCreate() {}
+    public open fun onCreate() {}
 
-    open fun onUnbind(intent: Intent): Boolean {
+    public open fun onUnbind(intent: Intent): Boolean {
         return false
     }
 
-    open fun onRebind(intent: Intent) {}
+    public open fun onRebind(intent: Intent) {}
 
-    open fun onDestroy() {}
+    public open fun onDestroy() {}
 
-    fun stopSelf() {
+    public fun stopSelf() {
         RootServiceServer.getInstance(this).selfStop(getComponentName())
     }
 

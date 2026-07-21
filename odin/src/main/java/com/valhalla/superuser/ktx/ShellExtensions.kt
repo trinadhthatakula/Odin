@@ -21,7 +21,7 @@ import kotlin.coroutines.resumeWithException
  * The continuation resumes on the job's completing worker thread (`submit(null, cb)`),
  * so the caller's coroutine context governs dispatch — no `Dispatchers.Main` round-trip.
  */
-suspend fun Shell.Job.await(): Shell.Result = suspendCancellableCoroutine { cont ->
+public suspend fun Shell.Job.await(): Shell.Result = suspendCancellableCoroutine { cont ->
     submit(null) { result ->
         if (cont.isActive) cont.resume(result)
     }
@@ -65,7 +65,7 @@ public fun Shell.Job.asFlow(): Flow<ShellLine> = callbackFlow {
  * Gets the main shell instance via coroutines, without blocking the calling thread.
  * Resumes exceptionally with the cause (or [NoShellException]) if shell init hard-fails.
  */
-suspend fun getShellAwait(): Shell = suspendCancellableCoroutine { cont ->
+public suspend fun getShellAwait(): Shell = suspendCancellableCoroutine { cont ->
     Shell.getShell(
         object : Shell.GetShellCallback {
             override fun onShell(shell: Shell) {

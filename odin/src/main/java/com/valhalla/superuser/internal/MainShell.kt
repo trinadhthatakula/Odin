@@ -10,7 +10,7 @@ import java.io.InputStream
 import java.util.concurrent.Executor
 
 @RestrictTo(RestrictTo.Scope.LIBRARY)
-object MainShell {
+internal object MainShell {
     @GuardedBy("self")
     private val mainShell = arrayOfNulls<ShellImpl>(1)
 
