@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -40,7 +41,11 @@ suspend fun Shell.Job.await(): Shell.Result = suspendCancellableCoroutine { cont
  * dedicated shell is not supported in this release.
  */
 public fun Shell.Job.asFlow(): Flow<ShellLine> = callbackFlow {
-    fun lineSink(isError: Boolean) = object : CallbackList<String?>() {
+    // Emit synchronously on the gobbler thread: every trySendBlocking completes before the
+    // gobbler's FutureTask.get() returns (happens-before the worker-thread close()), and no
+    // emission is dispatched to the main thread. Prevents tail-line drops under high-volume streams.
+    val directExecutor = Executor { it.run() }
+    fun lineSink(isError: Boolean) = object : CallbackList<String?>(directExecutor) {
         override fun onAddElement(e: String?) {
             if (e != null) trySendBlocking(ShellLine(e, isError))
         }

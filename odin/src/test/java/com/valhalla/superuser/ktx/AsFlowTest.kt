@@ -1,9 +1,8 @@
 package com.valhalla.superuser.ktx
 
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class AsFlowTest {
@@ -13,9 +12,10 @@ class AsFlowTest {
     }
 
     // Losslessness/close-on-failure of the callbackFlow are validated on-device / via the
-    // engine; here we assert the ShellLine contract + that a list of tagged lines round-trips.
-    @Test fun taggedLinesRoundTrip() = runTest {
-        val lines = listOf(ShellLine("a", false), ShellLine("e", true))
-        assertEquals(listOf(false, true), lines.map { it.isError })
+    // engine; here we assert the ShellLine data-class contract (equality + copy).
+    @Test fun shellLineDataClassContract() {
+        assertEquals(ShellLine("x", false), ShellLine("x", false))
+        assertNotEquals(ShellLine("x", false), ShellLine("x", true))
+        assertEquals(ShellLine("x", true), ShellLine("x", false).copy(isError = true))
     }
 }
