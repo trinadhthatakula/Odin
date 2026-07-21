@@ -1,31 +1,24 @@
 package com.valhalla.superuser.ktx
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+// Drives the REAL production seam Throwable.toTransportFailureOrRethrow() — the exact never-throws
+// policy exec() applies in its catch. A CancellationException must propagate (structured concurrency);
+// any other Throwable becomes a transport-failure ShellResult. Altering the real policy fails these.
 class ShellRepositoryCancellationTest {
-    // runInternal must rethrow CancellationException rather than swallow it into Result.failure.
-    // We exercise the exact catch policy via a tiny stand-in with the same structure.
-    private suspend fun runInternalPolicy(block: suspend () -> List<String>): Result<List<String>> =
-        try {
-            Result.success(block())
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Result.failure(e)
-        }
-
-    @Test
-    fun cancellationPropagates() = runTest {
+    @Test fun cancellationPropagates() {
         assertFailsWith<CancellationException> {
-            runInternalPolicy { throw CancellationException("cancelled") }
+            CancellationException("cancelled").toTransportFailureOrRethrow()
         }
     }
 
-    @Test
-    fun otherFailureBecomesResultFailure() = runTest {
-        val r = runInternalPolicy { throw RuntimeException("boom") }
-        assert(r.isFailure)
+    @Test fun otherFailureBecomesTransportFailureResult() {
+        val r = RuntimeException("boom").toTransportFailureOrRethrow()
+        assertEquals(ShellResult.JOB_NOT_EXECUTED, r.code)
+        assertEquals(emptyList<String>(), r.stdout)
+        assertEquals(listOf("boom"), r.stderr)
     }
 }

@@ -48,6 +48,23 @@ signingInMemoryKeyPassword=<key passphrase>
 4. Verify the artifact appears at
    https://repo1.maven.org/maven2/com/trinadhthatakula/odin/ (allow time for sync).
 
+## Maintaining the API dump
+
+`odin/api/odin.api` is the frozen public ABI, enforced by a hand-wired
+binary-compatibility-validator (BCV) task graph in `odin/build.gradle.kts` (AGP uses its built-in
+Kotlin, which BCV does not auto-hook). The BCV worker classpath pins
+`org.jetbrains.kotlin:kotlin-metadata-jvm` to the Kotlin version AGP bundles (currently `2.2.10`, see
+the inline comment on `bcvWorkerClasspath`) so the ABI reader parses `@Metadata` correctly.
+
+**On any AGP upgrade:**
+1. Bump the `kotlin-metadata-jvm` coordinate in `bcvWorkerClasspath` to match the new AGP-bundled
+   Kotlin version.
+2. Re-run `./gradlew :odin:apiDump` and review the diff to `odin/api/odin.api` before committing.
+
+A stale pin can make the reader mis-parse `@Metadata` and produce a spurious dump diff (or let a real
+ABI change slip through). Only `public`/`protected` declarations enter the dump — `internal` helpers
+are excluded — so adding module-internal seams never requires a dump change.
+
 ## CI / automated publishing (GitHub Actions)
 
 `.github/workflows/publish.yml` publishes automatically on every push to the **`production`** branch.
