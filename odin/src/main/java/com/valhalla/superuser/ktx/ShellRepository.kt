@@ -23,12 +23,26 @@ public interface ShellRepository {
      */
     public suspend fun exec(vararg commands: String): ShellResult
 
+    /**
+     * Legacy lossy runner kept for source compatibility.
+     *
+     * Returns a [kotlin.Result] whose success value is only the STDOUT lines; the exit code and
+     * STDERR are discarded (a non-zero exit becomes `Result.failure`). Prefer [exec], which
+     * preserves all three via [ShellResult].
+     */
     @Deprecated(
         "Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.",
         ReplaceWith("exec(command)")
     )
     public suspend fun runCommand(command: String): Result<List<String>>
 
+    /**
+     * Legacy lossy multi-command runner kept for source compatibility.
+     *
+     * Runs [commands] as one job and returns a [kotlin.Result] whose success value is only the
+     * combined STDOUT lines; the exit code and STDERR are discarded. Prefer [exec], which
+     * preserves all three via [ShellResult].
+     */
     @Deprecated(
         "Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.",
         ReplaceWith("exec(*commands)")
