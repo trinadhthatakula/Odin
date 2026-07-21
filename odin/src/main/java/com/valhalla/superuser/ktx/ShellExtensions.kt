@@ -1,9 +1,13 @@
 package com.valhalla.superuser.ktx
 
+import com.valhalla.superuser.CallbackList
 import com.valhalla.superuser.NoShellException
 import com.valhalla.superuser.Shell
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -23,35 +27,34 @@ suspend fun Shell.Job.await(): Shell.Result = suspendCancellableCoroutine { cont
 }
 
 /**
- * Converts a Shell Job's output into a reactive Flow.
- * Replaces the "CallbackList".
+ * Streams this job's output as a lossless, stream-tagged [Flow] of [ShellLine].
  *
- * Usage:
- * Shell.cmd("logcat").asFlow().collect { line -> ... }
+ * Both STDOUT and STDERR are delivered ([ShellLine.isError] distinguishes them). The channel is
+ * UNLIMITED: the root pipe must be drained continuously, so output is never dropped and the drain
+ * is never back-pressured. The flow completes when the command ends and closes with the failure
+ * cause on a transport error.
+ *
+ * Cancellation contract: cancelling the collector stops emission and releases references, but a
+ * command already running on the shared shell **drains to completion in the background** (its
+ * output is discarded). Interrupting an in-flight command / isolating long-running streams on a
+ * dedicated shell is not supported in this release.
  */
-fun Shell.Job.asFlow(): Flow<String> = callbackFlow {
-    // We create a custom list that emits to the flow when items are added.
-    val flowList = object : java.util.ArrayList<String?>() {
-        override fun add(element: String?): Boolean {
-            element?.let { trySend(it) }
-            return super.add(element)
+public fun Shell.Job.asFlow(): Flow<ShellLine> = callbackFlow {
+    fun lineSink(isError: Boolean) = object : CallbackList<String?>() {
+        override fun onAddElement(e: String?) {
+            if (e != null) trySendBlocking(ShellLine(e, isError))
         }
     }
-
-    // Direct output to our flow-emitting list
-    to(flowList)
-
-    // Execute asynchronously using object expression for the callback
-    submit(object : Shell.ResultCallback {
-        override fun onResult(out: Shell.Result) {
-            close() // Close the flow when the job is done
+    to(lineSink(isError = false), lineSink(isError = true))
+    submit(null) { result ->
+        if (result.code == Shell.Result.JOB_NOT_EXECUTED) {
+            close(NoShellException("Shell job did not execute (code ${result.code})"))
+        } else {
+            close()
         }
-    })
-
-    awaitClose {
-        // Handle cancellation if necessary, though libsu jobs might not support explicit cancel
     }
-}
+    awaitClose { /* stop emitting; the engine's gobbler keeps the pipe drained (see KDoc). */ }
+}.buffer(Channel.UNLIMITED)
 
 /**
  * Gets the main shell instance via coroutines, without blocking the calling thread.
