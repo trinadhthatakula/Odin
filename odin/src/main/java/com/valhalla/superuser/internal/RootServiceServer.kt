@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Debug
 import android.os.FileObserver
 import android.os.IBinder
@@ -14,6 +13,7 @@ import android.os.RemoteException
 import android.os.UserHandle
 import android.util.ArrayMap
 import android.util.SparseArray
+import androidx.core.util.isEmpty
 import com.valhalla.superuser.ipc.RootService
 import com.valhalla.superuser.internal.UiThreadHandler
 import java.io.File
@@ -93,7 +93,7 @@ internal class RootServiceServer private constructor(context: Context) : IRootSe
     }
 
     override fun run() {
-        if (clients.size() == 0) {
+        if (clients.isEmpty()) {
             exit("No active clients")
         }
     }
@@ -120,12 +120,9 @@ internal class RootServiceServer private constructor(context: Context) : IRootSe
         val targetUid = if (getCallingUid() == 0) uid else getCallingUid()
         Utils.log(RootServiceManager.TAG, "broadcast to uid=$targetUid")
         val intent = RootServiceManager.getBroadcastIntent(this, isDaemon)
-        if (Build.VERSION.SDK_INT >= 24) {
-            val h = UserHandle.getUserHandleForUid(targetUid)
-            Utils.context?.sendBroadcastAsUser(intent, h)
-        } else {
-            Utils.context?.sendBroadcast(intent)
-        }
+        // minSdk 24: getUserHandleForUid / sendBroadcastAsUser are always available.
+        val h = UserHandle.getUserHandleForUid(targetUid)
+        Utils.context?.sendBroadcastAsUser(intent, h)
     }
 
     override fun bind(intent: Intent): IBinder? {
