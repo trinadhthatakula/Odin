@@ -1,5 +1,5 @@
 [versions]
-agp = "9.4.0-alpha05"
+agp = "9.3.0"
 # No kotlin plugin: Odin intentionally uses AGP's built-in Kotlin (com.android.library on AGP 9+),
 # so the Kotlin compiler version is the one AGP bundles. Do not add a kotlin plugin/version unless
 # a version-specific compile error forces an explicit pin.
