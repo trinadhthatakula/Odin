@@ -10,7 +10,7 @@ dependencies {
 }
 ```
 
-Requires `minSdk 24`. Published to Maven Central.
+Requires `minSdk 24`. Will be published to Maven Central from `1.0.0`.
 
 ## What it provides
 

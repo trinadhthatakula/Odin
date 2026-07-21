@@ -1,6 +1,8 @@
 [versions]
 agp = "9.4.0-alpha05"
-kotlin = "2.4.10"
+# No kotlin plugin: Odin intentionally uses AGP's built-in Kotlin (com.android.library on AGP 9+),
+# so the Kotlin compiler version is the one AGP bundles. Do not add a kotlin plugin/version unless
+# a version-specific compile error forces an explicit pin.
 compileSdk = "37"
 coreKtx = "1.19.0"
 kotlinxCoroutines = "1.10.2"
