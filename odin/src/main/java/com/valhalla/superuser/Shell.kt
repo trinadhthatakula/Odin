@@ -290,6 +290,12 @@ abstract class Shell : Closeable {
              */
             get() = this.code == 0
 
+        /** STDOUT with null lines filtered out (non-null convenience view of [out]). */
+        val stdout: List<String> get() = out.filterNotNull()
+
+        /** STDERR with null lines filtered out (non-null convenience view of [err]). */
+        val stderr: List<String> get() = err.filterNotNull()
+
         companion object {
             /**
              * This code indicates that the job was not executed, and the outputs are all empty.

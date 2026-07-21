@@ -12,7 +12,27 @@ import java.io.IOException
  */
 interface ShellRepository {
     suspend fun isRootGranted(): Boolean
+
+    /**
+     * Runs [commands] as one shell job and returns a lossless [ShellResult].
+     *
+     * Never throws for shell/command failure: a transport failure (dead shell / broken pipe /
+     * [NoShellException]) yields `ShellResult(ShellResult.JOB_NOT_EXECUTED, emptyList(), listOf(msg))`.
+     * A completed command returns its real exit code (including non-zero). `CancellationException`
+     * always propagates. `vararg` runs as a single job → one combined [ShellResult] (last-command code).
+     */
+    suspend fun exec(vararg commands: String): ShellResult
+
+    @Deprecated(
+        "Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.",
+        ReplaceWith("exec(command)")
+    )
     suspend fun runCommand(command: String): Result<List<String>>
+
+    @Deprecated(
+        "Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.",
+        ReplaceWith("exec(*commands)")
+    )
     suspend fun runCommands(vararg commands: String): Result<List<String>>
 }
 
@@ -34,34 +54,28 @@ class RealShellRepository : ShellRepository {
         } ?: false
     }
 
-    override suspend fun runCommand(command: String): Result<List<String>> {
-        return runInternal(command)
-    }
-
-    override suspend fun runCommands(vararg commands: String): Result<List<String>> {
-        return runInternal(*commands)
-    }
-
-    private suspend fun runInternal(vararg commands: String): Result<List<String>> =
-        withContext(Dispatchers.IO) {
-            try {
-                val shell = getShellAwait()
-                val jobResult = shell.newJob().add(*commands).to(ArrayList()).await()
-
-                if (jobResult.isSuccess) {
-                    // Filter out nulls which legacy lib-su might produce
-                    Result.success(jobResult.out.filterNotNull())
-                } else {
-                    val errorMsg = jobResult.err.filterNotNull().joinToString("\n")
-                    Result.failure(IOException("Command failed with code ${jobResult.code}: $errorMsg"))
-                }
-            } catch (e: Exception) {
-                // Rethrow cancellation so structured concurrency is preserved (mirror isRootGranted);
-                // any other failure becomes a Result.failure.
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                Result.failure(e)
-            }
+    override suspend fun exec(vararg commands: String): ShellResult = withContext(Dispatchers.IO) {
+        try {
+            getShellAwait().newJob().add(*commands).to(ArrayList(), ArrayList()).await().toShellResult()
+        } catch (e: Exception) {
+            // Never-throws for shell/command failure; cancellation still propagates.
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            ShellResult(ShellResult.JOB_NOT_EXECUTED, emptyList(), listOf(e.message ?: e.javaClass.simpleName))
         }
+    }
+
+    @Deprecated("Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.", ReplaceWith("exec(command)"))
+    override suspend fun runCommand(command: String): Result<List<String>> = execToLegacy(command)
+
+    @Deprecated("Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.", ReplaceWith("exec(*commands)"))
+    override suspend fun runCommands(vararg commands: String): Result<List<String>> = execToLegacy(*commands)
+
+    // Adapts exec() back to the old kotlin.Result<List<String>> contract for the deprecated shims.
+    private suspend fun execToLegacy(vararg commands: String): Result<List<String>> {
+        val r = exec(*commands)
+        return if (r.isSuccess) Result.success(r.stdout)
+        else Result.failure(IOException("Command failed with code ${r.code}: ${r.stderr.joinToString("\n")}"))
+    }
 
     companion object {
         // Upper bound for shell-init before the root probe gives up and reports "no root".
