@@ -5,7 +5,7 @@ package com.valhalla.superuser.utils
 import android.util.Log
 import com.valhalla.superuser.BuildConfig
 
-public object Logger {
+internal object Logger {
 
     public fun d(tag: String?, message: String) {
         if (BuildConfig.DEBUG) {

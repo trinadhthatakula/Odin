@@ -65,13 +65,16 @@ public data class ShellResult(
 
 **Never throws for shell/command failure.** A command that exits non-zero returns its real exit
 code in `code` (with `isSuccess == false`); it does not throw. A *transport* failure — a dead
-shell, a broken pipe, or a `NoShellException` — yields:
+shell, a broken pipe, or a `NoShellException` — sets `code == ShellResult.JOB_NOT_EXECUTED` (-1):
 
 ```kotlin
-ShellResult(ShellResult.JOB_NOT_EXECUTED /* -1 */, emptyList(), listOf(errorMessage))
+ShellResult(ShellResult.JOB_NOT_EXECUTED /* -1 */, emptyList(), /* stderr: */ listOf(errorMessage))
 ```
 
-So you branch on the result rather than wrapping calls in `try/catch`:
+`stderr` carries the failure message **only when the shell-init accessor itself throws**; if the
+shell dies *after* init, the job returns `JOB_NOT_EXECUTED` with an **empty** `stderr`. So always
+detect transport failure by `code == JOB_NOT_EXECUTED`, never by whether `stderr` is populated —
+branch on the result rather than wrapping calls in `try/catch`:
 
 ```kotlin
 val r = shell.exec("id", "getprop ro.build.version.sdk")
@@ -84,6 +87,10 @@ when {
 
 > `CancellationException` **always** propagates — cancelling the calling coroutine cancels the
 > call; it is never swallowed into a `ShellResult`.
+
+> **`enableLegacyStderrRedirection`.** The `stdout`/`stderr` split (here and the `isError` tag in
+> `asFlow`) assumes the default `Shell.enableLegacyStderrRedirection = false`. Setting it `true`
+> folds STDERR into `stdout`, collapsing the separation — leave it at the default if you rely on it.
 
 **`vararg` = one combined job.** All commands passed in a single `exec(...)` run as **one** shell
 job and produce **one** `ShellResult`. `stdout`/`stderr` are the combined output of every command,

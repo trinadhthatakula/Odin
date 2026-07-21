@@ -18,6 +18,9 @@ import kotlin.coroutines.resumeWithException
  * Suspends until this [Shell.Job] completes and returns its full [Shell.Result]
  * (exit code + stdout + stderr preserved). Replaces the [Shell.Job.submit] callback.
  *
+ * This returns the lower-level core [Shell.Result]; for repository/UI code prefer
+ * [ShellRepository.exec], which returns the immutable, non-null ktx [ShellResult].
+ *
  * The continuation resumes on the job's completing worker thread (`submit(null, cb)`),
  * so the caller's coroutine context governs dispatch — no `Dispatchers.Main` round-trip.
  */
@@ -34,6 +37,9 @@ public suspend fun Shell.Job.await(): Shell.Result = suspendCancellableCoroutine
  * UNLIMITED: the root pipe must be drained continuously, so output is never dropped and the drain
  * is never back-pressured. The flow completes when the command ends and closes with the failure
  * cause on a transport error.
+ *
+ * The `isError` STDOUT/STDERR tagging assumes the default `Shell.enableLegacyStderrRedirection =
+ * false`; enabling it folds STDERR into STDOUT, so every line arrives tagged `isError = false`.
  *
  * Cancellation contract: cancelling the collector stops emission and releases references, but a
  * command already running on the shared shell **drains to completion in the background** (its

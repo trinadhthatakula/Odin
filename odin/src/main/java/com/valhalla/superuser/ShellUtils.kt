@@ -5,14 +5,12 @@ import java.io.IOException
 import java.io.InputStream
 
 /**
- * Some handy utility methods that are used in `libSu`.
+ * Blocking Java-interop helpers for running commands on the main shell.
  *
- *
- * These methods are for internal use. I personally find them pretty handy, so I gathered them here.
- * However, since these are meant to be used internally, they are not stable APIs.
- * I would change them without too much consideration if needed. Also, these methods are not well
- * tested for public usage, many might not handle some edge cases correctly.
- * **You have been warned!!**
+ * Kotlin callers should prefer the `suspend` extensions in `com.valhalla.superuser.utils`
+ * ([com.valhalla.superuser.utils.fastCmd] / [com.valhalla.superuser.utils.fastCmdResult]);
+ * these blocking overloads exist so Java code (which cannot call the `suspend` versions) can
+ * still run quick one-liners. Do not call them on the main thread.
  */
 @Suppress("unused")
 public object ShellUtils {
@@ -82,7 +80,7 @@ public object ShellUtils {
      * Check if current thread is main thread.
      * @return `true` if the current thread is the main thread.
      */
-    public fun onMainThread(): Boolean {
+    internal fun onMainThread(): Boolean {
         return Looper.getMainLooper().thread === Thread.currentThread()
     }
 
@@ -90,7 +88,7 @@ public object ShellUtils {
      * Discard all data currently available in an [InputStream].
      * @param inputStream the [InputStream] to be cleaned.
      */
-    public fun cleanInputStream(inputStream: InputStream) {
+    internal fun cleanInputStream(inputStream: InputStream) {
         try {
             while (inputStream.available() != 0) inputStream.skip(inputStream.available().toLong())
         } catch (_: IOException) {
@@ -129,7 +127,7 @@ public object ShellUtils {
      * @param v an integer.
      * @return the greatest common divisor.
      */
-    public fun gcd(u: Long, v: Long): Long {
+    internal fun gcd(u: Long, v: Long): Long {
         var u = u
         var v = v
         if (u == 0L) return v

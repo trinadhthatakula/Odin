@@ -16,10 +16,18 @@ public interface ShellRepository {
     /**
      * Runs [commands] as one shell job and returns a lossless [ShellResult].
      *
-     * Never throws for shell/command failure: a transport failure (dead shell / broken pipe /
-     * [NoShellException]) yields `ShellResult(ShellResult.JOB_NOT_EXECUTED, emptyList(), listOf(msg))`.
-     * A completed command returns its real exit code (including non-zero). `CancellationException`
+     * This returns the ktx [ShellResult] (immutable, non-null lists); the lower-level
+     * `Shell.Job.await()` returns the core `Shell.Result` instead. Use this for repository/UI code.
+     *
+     * Never throws for shell/command failure. A completed command returns its real exit code
+     * (including non-zero). On a *transport* failure (dead shell / broken pipe / `NoShellException`)
+     * `code == ShellResult.JOB_NOT_EXECUTED` (-1); the failure message is carried in `stderr` only
+     * when the shell-init accessor itself throws — if the shell dies after init, `stderr` MAY be
+     * empty. Always branch on `code`, never on whether `stderr` is populated. `CancellationException`
      * always propagates. `vararg` runs as a single job → one combined [ShellResult] (last-command code).
+     *
+     * The stdout/stderr split assumes the default `Shell.enableLegacyStderrRedirection = false`;
+     * enabling it folds STDERR into `stdout` and leaves `stderr` empty.
      */
     public suspend fun exec(vararg commands: String): ShellResult
 

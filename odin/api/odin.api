@@ -133,13 +133,10 @@ public final class com/valhalla/superuser/Shell$Task$DefaultImpls {
 
 public final class com/valhalla/superuser/ShellUtils {
 	public static final field INSTANCE Lcom/valhalla/superuser/ShellUtils;
-	public final fun cleanInputStream (Ljava/io/InputStream;)V
 	public final fun fastCmd (Lcom/valhalla/superuser/Shell;[Ljava/lang/String;)Ljava/lang/String;
 	public final fun fastCmd ([Ljava/lang/String;)Ljava/lang/String;
 	public final fun fastCmdResult (Lcom/valhalla/superuser/Shell;[Ljava/lang/String;)Z
 	public final fun fastCmdResult ([Ljava/lang/String;)Z
-	public final fun gcd (JJ)J
-	public final fun onMainThread ()Z
 }
 
 public abstract class com/valhalla/superuser/ipc/RootService : android/content/ContextWrapper {
@@ -231,16 +228,6 @@ public final class com/valhalla/superuser/ktx/ShellResult$Companion {
 
 public final class com/valhalla/superuser/ktx/ShellResultKt {
 	public static final fun toShellResult (Lcom/valhalla/superuser/Shell$Result;)Lcom/valhalla/superuser/ktx/ShellResult;
-}
-
-public final class com/valhalla/superuser/utils/Logger {
-	public static final field INSTANCE Lcom/valhalla/superuser/utils/Logger;
-	public final fun d (Ljava/lang/String;Ljava/lang/String;)V
-	public final fun e (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)V
-	public static synthetic fun e$default (Lcom/valhalla/superuser/utils/Logger;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)V
-	public final fun i (Ljava/lang/String;Ljava/lang/String;)V
-	public final fun v (Ljava/lang/String;Ljava/lang/String;)V
-	public final fun w (Ljava/lang/String;Ljava/lang/String;)V
 }
 
 public final class com/valhalla/superuser/utils/ShellUtilsKt {

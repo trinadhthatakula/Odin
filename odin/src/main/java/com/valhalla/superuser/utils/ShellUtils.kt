@@ -24,7 +24,7 @@ public fun String.escapeForShell(): String {
 }
 
 /**
- * Quickly runs a command and returns the first line of output or empty string.
+ * Quickly runs a command and returns the last line of output or empty string.
  * Now a suspend function to prevent blocking the Main Thread.
  */
 public suspend fun Shell.fastCmd(vararg commands: String): String {

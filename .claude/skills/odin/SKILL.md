@@ -169,9 +169,11 @@ RootService.unbind(connection)            // or RootService.stop(intent) to kill
 
 - **`exec()` NEVER throws for shell/command failure — check the result.** A non-zero command exit
   returns the real `code` with `isSuccess == false`. A *transport* failure (dead shell, broken pipe,
-  `NoShellException`) returns `ShellResult(ShellResult.JOB_NOT_EXECUTED /* -1 */, emptyList(),
-  listOf(errorMessage))`. Branch on `code == ShellResult.JOB_NOT_EXECUTED` and `isSuccess`; do not
-  rely on `try/catch`. Only `CancellationException` still propagates.
+  `NoShellException`) sets `code == ShellResult.JOB_NOT_EXECUTED` (-1). `stderr` carries the failure
+  message **only when the shell-init accessor itself throws**; if the shell dies after init, `stderr`
+  MAY be empty. Detect transport failure by `code == ShellResult.JOB_NOT_EXECUTED` (never by
+  whether `stderr` is populated), branch on `isSuccess`, and do not rely on `try/catch`. Only
+  `CancellationException` still propagates.
 - **`vararg` = one job, one result.** All commands in a single `exec(...)` run as one shell job:
   `stdout`/`stderr` are the combined output, and `code` is the exit code of the **last** command.
   Call `exec()` once per command if you need a result each.
@@ -181,6 +183,10 @@ RootService.unbind(connection)            // or RootService.stop(intent) to kill
   command by cancelling the collector in this release. The backing channel is unlimited (the pipe
   must drain), so output is never dropped; the flow closes with the failure cause on transport error
   (a `JOB_NOT_EXECUTED` result closes it with `NoShellException`).
+- **`enableLegacyStderrRedirection` collapses the STDOUT/STDERR split.** `exec()`'s `stderr` and
+  `asFlow()`'s `isError` tagging assume the default `Shell.enableLegacyStderrRedirection = false`.
+  Setting it `true` folds STDERR into STDOUT (`exec` yields empty `stderr`; every `asFlow` line is
+  tagged `isError = false`). Leave it at the default if you rely on separated streams.
 - **`isRootGranted()` is failure-safe**, not a live capability gate: it is bounded (~10 s upper
   bound, never hangs) and resolves to `false` — never throws — on shell-init failure. `getShellAwait()`
   is the opposite: it *resumes exceptionally* on hard init failure (underlying cause, or
