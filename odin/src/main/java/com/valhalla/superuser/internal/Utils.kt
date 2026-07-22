@@ -14,17 +14,21 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.lang.reflect.Method
 import java.util.Collections
 import java.util.Objects
 
+// StaticFieldLeak: `context` intentionally holds the process-lived application context — setContext()
+// walks to applicationContext, getContext() falls back to ActivityThread.currentApplication(), and in
+// the root server process it is that process's own package context. It never references an
+// Activity/View, so this process-global singleton (for a root-shell library) cannot leak one.
+// Suppressed at object scope because lint anchors the report on the object declaration.
+@SuppressLint("StaticFieldLeak")
 @Suppress("unused")
 internal object Utils {
     private const val TAG = "LIBSU"
     private var synchronizedCollectionClass: Class<*>? = null
     private var currentRootState = -1
 
-    @SuppressLint("StaticFieldLeak")
     @JvmField
     var context: Context? = null
 
@@ -90,8 +94,8 @@ internal object Utils {
 
     @JvmStatic
     fun getDeContext(): Context {
-        val ctx = getContext()
-        return if (Build.VERSION.SDK_INT >= 24) ctx.createDeviceProtectedStorageContext() else ctx
+        // minSdk 24: the device-protected storage context is always available.
+        return getContext().createDeviceProtectedStorageContext()
     }
 
     @JvmStatic
@@ -133,11 +137,8 @@ internal object Utils {
 
     @JvmStatic
     fun <E> newArraySet(): MutableSet<E> {
-        return if (Build.VERSION.SDK_INT >= 23) {
-            ArraySet()
-        } else {
-            HashSet()
-        }
+        // minSdk 24: ArraySet (added in API 23) is always available.
+        return ArraySet()
     }
 
     @Synchronized
@@ -182,26 +183,11 @@ internal object Utils {
         return MainShell.get().isRoot
     }
 
-    @SuppressLint("DiscouragedPrivateApi")
     @JvmStatic
     fun isProcess64Bit(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return Process.is64Bit()
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return false
-        }
-        return runCatching {
-            val classVMRuntime = Class.forName("dalvik.system.VMRuntime")
-            val getRuntime = classVMRuntime.getDeclaredMethod("getRuntime")
-            getRuntime.isAccessible = true
-            val runtime = getRuntime.invoke(null)
-            val is64Bit = classVMRuntime.getDeclaredMethod("is64Bit")
-            is64Bit.isAccessible = true
-            is64Bit.invoke(runtime) as Boolean
-        }.getOrElse { e ->
-            err(e)
-            false
-        }
+        // minSdk 24 >= M: Process.is64Bit() is always available, so the old VMRuntime reflection
+        // fallback (for API < 23) was dead code and has been removed along with its
+        // DiscouragedPrivateApi suppression.
+        return Process.is64Bit()
     }
 }

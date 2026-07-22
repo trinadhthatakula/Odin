@@ -20,6 +20,7 @@ import android.os.Process
 import android.os.RemoteException
 import android.util.ArrayMap
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.valhalla.superuser.Shell
 import com.valhalla.superuser.ipc.RootService
 import com.valhalla.superuser.internal.UiThreadHandler
@@ -112,18 +113,19 @@ internal class RootServiceManager private constructor() : Handler.Callback {
 
         if ((flags and RECEIVER_REGISTERED) == 0) {
             val filter = IntentFilter(RECEIVER_BROADCAST)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(
-                    ServiceReceiver(), filter,
-                    Manifest.permission.BROADCAST_PACKAGE_REMOVED, null,
-                    Context.RECEIVER_NOT_EXPORTED
-                )
-            } else {
-                context.registerReceiver(
-                    ServiceReceiver(), filter,
-                    Manifest.permission.BROADCAST_PACKAGE_REMOVED, null
-                )
-            }
+            // Internal-only receiver: the root/daemon server broadcasts the service binder back to
+            // this same app. Register it NOT_EXPORTED (no other app may deliver to it) while still
+            // gating on the system BROADCAST_PACKAGE_REMOVED permission, matching the prior
+            // Tiramisu+ path. ContextCompat applies the flag on API 33+ and ignores it below, so
+            // behavior is preserved across all supported API levels (minSdk 24).
+            ContextCompat.registerReceiver(
+                context,
+                ServiceReceiver(),
+                filter,
+                Manifest.permission.BROADCAST_PACKAGE_REMOVED,
+                null,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
             flags = flags or RECEIVER_REGISTERED
         }
 
@@ -147,9 +149,8 @@ internal class RootServiceManager private constructor() : Handler.Callback {
                      params = if (Build.VERSION.SDK_INT == 27) API_27_DEBUG else API_28_DEBUG
                  }
 
-                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                     params += " -Xnoimage-dex2oat"
-                 }
+                 // minSdk 24 is always >= LOLLIPOP.
+                 params += " -Xnoimage-dex2oat"
 
                  val niceNameCmd = when (action) {
                      Constants.CMDLINE_START_SERVICE -> String.format(
@@ -160,10 +161,9 @@ internal class RootServiceManager private constructor() : Handler.Callback {
                      else -> ""
                  }
 
+                 // minSdk 24 is always >= LOLLIPOP.
                  var appProcess = "/system/bin/app_process"
-                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                     appProcess += if (Utils.isProcess64Bit()) "64" else "32"
-                 }
+                 appProcess += if (Utils.isProcess64Bit()) "64" else "32"
 
                  val cmd = String.format(
                      Locale.ROOT,

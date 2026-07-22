@@ -35,7 +35,7 @@ signingInMemoryKeyPassword=<key passphrase>
 > **Build on JDK 21.** This project mandates JDK 21 (Zulu/Corretto). If your machine's default
 > `java` is newer (e.g. JDK 26), the javadoc/Dokka step fails with an `IllegalArgumentException`.
 > Either set `JAVA_HOME` to a JDK 21, or pass `-Dorg.gradle.java.home=/path/to/jdk-21` to the
-> Gradle commands below. AGP is pinned to **9.4.0-alpha05** (compileSdk 37) for reproducible builds.
+> Gradle commands below. AGP is pinned to **9.3.0** (compileSdk 37) for reproducible builds.
 
 1. Bump `VERSION_NAME` in `gradle.properties` (SemVer).
 - Optional local dry-run without a GPG key (SNAPSHOT versions are exempt from signing):
@@ -47,6 +47,23 @@ signingInMemoryKeyPassword=<key passphrase>
 3. With `automaticRelease = true` the deployment promotes itself; otherwise confirm it in the portal.
 4. Verify the artifact appears at
    https://repo1.maven.org/maven2/com/trinadhthatakula/odin/ (allow time for sync).
+
+## Maintaining the API dump
+
+`odin/api/odin.api` is the frozen public ABI, enforced by a hand-wired
+binary-compatibility-validator (BCV) task graph in `odin/build.gradle.kts` (AGP uses its built-in
+Kotlin, which BCV does not auto-hook). The BCV worker classpath pins
+`org.jetbrains.kotlin:kotlin-metadata-jvm` to the Kotlin version AGP bundles (currently `2.2.10`, see
+the inline comment on `bcvWorkerClasspath`) so the ABI reader parses `@Metadata` correctly.
+
+**On any AGP upgrade:**
+1. Bump the `kotlin-metadata-jvm` coordinate in `bcvWorkerClasspath` to match the new AGP-bundled
+   Kotlin version.
+2. Re-run `./gradlew :odin:apiDump` and review the diff to `odin/api/odin.api` before committing.
+
+A stale pin can make the reader mis-parse `@Metadata` and produce a spurious dump diff (or let a real
+ABI change slip through). Only `public`/`protected` declarations enter the dump — `internal` helpers
+are excluded — so adding module-internal seams never requires a dump change.
 
 ## CI / automated publishing (GitHub Actions)
 

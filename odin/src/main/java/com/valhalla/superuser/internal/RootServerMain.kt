@@ -63,15 +63,7 @@ internal class RootServerMain(args: Array<String>) : ContextWrapper(null), Calla
         }
 
         // Override LG system resources to prevent crashing
-        try {
-            Class.forName("com.lge.systemservice.core.integrity.IntegrityManager")
-            val systemRes = Resources.getSystem()
-            val wrapper = ResourcesWrapper(systemRes)
-            val systemResField = Resources::class.java.getDeclaredField("mSystem")
-            systemResField.isAccessible = true
-            systemResField.set(null, wrapper)
-        } catch (ignored: ReflectiveOperationException) {
-        }
+        overrideLgSystemResources()
 
         val systemContext = getSystemContext()
         var context: Context? = null
@@ -106,6 +98,22 @@ internal class RootServerMain(args: Array<String>) : ContextWrapper(null), Calla
 
     override fun call(): Array<Any> {
         return arrayOf(uid, isDaemon)
+    }
+
+    // Reflective write to the private Resources.mSystem field is required to swap in a crash-safe
+    // system Resources wrapper on LG devices inside the root (app_process) server; there is no
+    // public SDK alternative. Runs only in the root bootstrap process.
+    @SuppressLint("DiscouragedPrivateApi")
+    private fun overrideLgSystemResources() {
+        try {
+            Class.forName("com.lge.systemservice.core.integrity.IntegrityManager")
+            val systemRes = Resources.getSystem()
+            val wrapper = ResourcesWrapper(systemRes)
+            val systemResField = Resources::class.java.getDeclaredField("mSystem")
+            systemResField.isAccessible = true
+            systemResField.set(null, wrapper)
+        } catch (ignored: ReflectiveOperationException) {
+        }
     }
 
     companion object {
@@ -146,6 +154,9 @@ internal class RootServerMain(args: Array<String>) : ContextWrapper(null), Calla
         }
     }
 
+    // Reflective getImpl/setImpl copy the private ResourcesImpl from the system Resources into this
+    // wrapper; there is no public SDK API for this. Root-only LG crash workaround.
+    @SuppressLint("DiscouragedPrivateApi")
     internal class ResourcesWrapper(res: Resources) : Resources(res.assets, res.displayMetrics, res.configuration) {
         init {
             val getImpl = Resources::class.java.getDeclaredMethod("getImpl")

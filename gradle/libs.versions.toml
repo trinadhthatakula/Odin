@@ -5,10 +5,10 @@ agp = "9.3.0"
 # a version-specific compile error forces an explicit pin.
 compileSdk = "37"
 coreKtx = "1.19.0"
-kotlinxCoroutines = "1.10.2"
-kotlinxCoroutinesTest = "1.10.2"
-vanniktechMavenPublish = "0.34.0"
-binaryCompatibilityValidator = "0.17.0"
+kotlinxCoroutines = "1.11.0"
+kotlinxCoroutinesTest = "1.11.0"
+vanniktechMavenPublish = "0.37.0"
+binaryCompatibilityValidator = "0.18.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }

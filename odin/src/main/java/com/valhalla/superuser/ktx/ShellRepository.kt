@@ -3,7 +3,6 @@ package com.valhalla.superuser.ktx
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.io.IOException
 
 /**
  * Interface for interacting with the Root Shell.
@@ -80,24 +79,17 @@ public class RealShellRepository : ShellRepository {
         try {
             getShellAwait().newJob().add(*commands).to(ArrayList(), ArrayList()).await().toShellResult()
         } catch (e: Exception) {
-            // Never-throws for shell/command failure; cancellation still propagates.
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            ShellResult(ShellResult.JOB_NOT_EXECUTED, emptyList(), listOf(e.message ?: e.javaClass.simpleName))
+            // Never-throws for shell/command failure; cancellation still propagates. The exact policy
+            // lives in the tested toTransportFailureOrRethrow() seam.
+            return@withContext e.toTransportFailureOrRethrow()
         }
     }
 
     @Deprecated("Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.", ReplaceWith("exec(command)"))
-    override suspend fun runCommand(command: String): Result<List<String>> = execToLegacy(command)
+    override suspend fun runCommand(command: String): Result<List<String>> = exec(command).toLegacyResult()
 
     @Deprecated("Lossy: drops exit code + stderr. Use exec() for a lossless ShellResult.", ReplaceWith("exec(*commands)"))
-    override suspend fun runCommands(vararg commands: String): Result<List<String>> = execToLegacy(*commands)
-
-    // Adapts exec() back to the old kotlin.Result<List<String>> contract for the deprecated shims.
-    private suspend fun execToLegacy(vararg commands: String): Result<List<String>> {
-        val r = exec(*commands)
-        return if (r.isSuccess) Result.success(r.stdout)
-        else Result.failure(IOException("Command failed with code ${r.code}: ${r.stderr.joinToString("\n")}"))
-    }
+    override suspend fun runCommands(vararg commands: String): Result<List<String>> = exec(*commands).toLegacyResult()
 
     private companion object {
         // Upper bound for shell-init before the root probe gives up and reports "no root".
