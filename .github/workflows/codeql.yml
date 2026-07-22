@@ -24,11 +24,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      # build-mode: manual — CodeQL's build-mode:none Gradle model resolution fails on this
+      # Android library (AmbiguousArtifactsFailure -> "no source code seen"), so we trace a real
+      # Kotlin compile instead. Uses the same JDK 21 / Gradle setup that pr-ci.yml proves works.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: java-kotlin
-          build-mode: none
+          build-mode: manual
+
+      - name: Build (traced by CodeQL)
+        # --no-build-cache forces compileReleaseKotlin to actually run so the tracer sees it.
+        run: ./gradlew :odin:assembleRelease --no-build-cache --no-configuration-cache --stacktrace
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
