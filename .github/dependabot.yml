@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Gradle dependencies (kotlinx-coroutines, AGP/Kotlin toolchain, BCV, vanniktech, etc.).
+  # Grouped into a single PR so a bump set lands together. Odin's public ABI is BCV-frozen,
+  # so any dependency PR that alters the surface will fail apiCheck in pr-ci and must be
+  # accompanied by a reviewed api-dump update.
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    groups:
+      gradle:
+        patterns:
+          - "*"
+
+  # Keep GitHub Actions versions current/patched — especially the publish workflow, which
+  # holds the in-memory signing key + Maven Central credentials. Grouped into one weekly PR.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"

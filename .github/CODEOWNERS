@@ -1,0 +1,15 @@
+# Code owners for Odin. Listed owners are auto-requested for review on matching paths.
+# Docs: https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repository
+*                       @trinadhthatakula
+
+# Release-gating / CI + publishing config (holds signing + Central credential wiring) —
+# always flag for maintainer review.
+/.github/                @trinadhthatakula
+/gradle.properties       @trinadhthatakula
+
+# High-risk privileged surface: the root-shell engine, RootService IPC, and the frozen
+# public ABI dump — always flag for maintainer review.
+/odin/src/main/java/com/valhalla/superuser/    @trinadhthatakula
+/odin/api/                                      @trinadhthatakula
