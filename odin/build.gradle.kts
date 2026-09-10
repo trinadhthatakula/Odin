@@ -71,7 +71,7 @@ val bcvApiFileName = "odin.api"
 val bcvWorkerClasspath: Configuration = configurations.detachedConfiguration(
     dependencies.create("org.ow2.asm:asm:9.10.1"),
     dependencies.create("org.ow2.asm:asm-tree:9.10.1"),
-    dependencies.create("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.10"),
+    dependencies.create("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.20"),
 )
 
 val apiBuild = tasks.register<KotlinApiBuildTask>("apiBuild") {
