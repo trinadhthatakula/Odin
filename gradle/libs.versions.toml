@@ -4,7 +4,7 @@ agp = "9.4.1"
 # so the Kotlin compiler version is the one AGP bundles. Do not add a kotlin plugin/version unless
 # a version-specific compile error forces an explicit pin.
 compileSdk = "37"
-coreKtx = "1.19.0"
+coreKtx = "1.19.1"
 kotlinxCoroutines = "1.11.0"
 kotlinxCoroutinesTest = "1.11.0"
 vanniktechMavenPublish = "0.37.0"
