@@ -9,5 +9,6 @@ Created for Odin/Thor lifecycle acceptance on 2026-09-30.
 - Start: `/Users/trinadhthatakula/StudioProjects/Odin-test-emulator/start-emulator.sh -no-window`.
 - Configure an installed package's Magisk policy: `/Users/trinadhthatakula/StudioProjects/Odin-test-emulator/set-magisk-policy.sh <package> grant|deny|prompt`. This briefly roots adbd to configure this disposable userdebug AVD, then restores shell UID. Test root through the app/gateway after adbd is unrooted.
 - The private image has a persistent Magisk boot script that makes normal `su` resolve to Magisk rather than the stock userdebug root/shell-only su binary.
+- After installing Thor's lifecycle integration APKs, run `sh docs/testing/run-magisk-policy-test.sh` from Odin to exercise existing-shell identity, fresh denial and re-grant. The script restores the app grant and shell-UID adbd on exit. Magisk's policy cache has a sliding three-second lifetime; the instrumentation test spaces fresh-su probes accordingly.
 
 The image uses rootAVD's fake boot-image approach with Magisk's own boot patcher to accommodate Magisk 30 binary names. Local provisioning artifacts and probe app are retained in `Odin-test-emulator`. This is an emulator test environment, not evidence for every production root manager or device.
