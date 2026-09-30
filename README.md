@@ -49,6 +49,8 @@ for termination scope, output behavior, and root-refresh outcomes.
 
 Agents integrating Odin can use [.claude/skills/odin/SKILL.md](.claude/skills/odin/SKILL.md).
 Run `python3 scripts/install-integration-skill.py` to install it into common agent skill directories.
+The installer copies the complete skill package, including shell, RootService and artifact-validation
+references. Agents can invoke `$odin` from another app checkout; automatic discovery is enabled.
 
 ## License
 

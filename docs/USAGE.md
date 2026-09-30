@@ -10,6 +10,8 @@ framework. All entry points live under `com.valhalla.superuser` (core) and
 - [Quick one-liners: `fastCmd` / `fastCmdResult`](#quick-one-liners-fastcmd--fastcmdresult)
 - [`RootService` IPC](#rootservice-ipc)
 - [Migrating from `runCommand` / `runCommands`](#migrating-from-runcommand--runcommands)
+- [Isolated jobs and cancellation](#isolated-jobs-and-cancellation)
+- [Explicit root refresh](#explicit-root-refresh)
 
 ---
 
@@ -194,7 +196,10 @@ class MyRootService : RootService() {
 }
 ```
 
-Declare it in the manifest like any `Service` (it must NOT be exported to other apps).
+`RootService` extends `ContextWrapper`, not Android's `Service`. Use Odin's explicit-intent
+binding API below; do not use `Context.bindService()` or `startService()`. A manifest service
+declaration is not required. Keep the app-owned concrete class and no-argument constructor for
+reflective loading in minified builds (for example, annotate it with `androidx.annotation.Keep`).
 
 **2. Bind / unbind from your app process** (main thread). The connection is delivered to a standard
 `ServiceConnection`:
@@ -227,8 +232,8 @@ Notes:
 
 - `RootService.bind(intent, executor, conn)` lets you choose the callback `Executor`
   (the no-executor overload uses the main thread).
-- `RootService.stop(intent)` tears the whole root process down (vs. `unbind`, which only detaches
-  this connection); a service can also `stopSelf()` from inside the root process.
+- `RootService.stop(intent)` stops the addressed service; the root server exits when no active
+  services remain. A service can also `stopSelf()` from inside the root process.
 - Add the `CATEGORY_DAEMON_MODE` category to the intent to keep the service alive across unbinds
   (daemon mode).
 - If root is unavailable, `bind`/`stop` are no-ops. The `bindOrTask` / `stopOrTask` variants return
