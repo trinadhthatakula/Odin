@@ -27,6 +27,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Verify release
+        run: ./gradlew :odin:testDebugUnitTest :odin:lintDebug :odin:assembleRelease :odin:apiCheck --stacktrace
+
       - name: Publish to Maven Central
         run: ./gradlew publishToMavenCentral --no-configuration-cache --stacktrace
         env:

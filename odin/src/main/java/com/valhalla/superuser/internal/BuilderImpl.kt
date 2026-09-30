@@ -15,6 +15,12 @@ internal class BuilderImpl : Shell.Builder() {
     private var initializers: Array<Shell.Initializer?>? = null
     private var command: Array<String?>? = null
 
+    fun controlCopy(): BuilderImpl = BuilderImpl().also {
+        it.timeout = timeout.coerceAtMost(5)
+        it.flags = flags
+        it.command = command?.copyOf()
+    }
+
     fun hasFlags(mask: Int): Boolean {
         return (flags and mask) == mask
     }
@@ -25,6 +31,7 @@ internal class BuilderImpl : Shell.Builder() {
     }
 
     override fun setTimeout(timeout: Long): Shell.Builder {
+        require(timeout > 0) { "Timeout must be positive" }
         this@BuilderImpl.timeout = timeout
         return this
     }
@@ -56,7 +63,10 @@ internal class BuilderImpl : Shell.Builder() {
         if (!hasFlags(Shell.FLAG_NON_ROOT_SHELL) && hasFlags(Shell.FLAG_MOUNT_MASTER)) {
             try {
                 shell = exec("su", "--mount-master")
-                if (!shell.isRoot) shell = null
+                if (!shell.isRoot) {
+                    shell.close()
+                    shell = null
+                }
             } catch (_: NoShellException) {
             }
         }
@@ -66,6 +76,7 @@ internal class BuilderImpl : Shell.Builder() {
             try {
                 shell = exec("su")
                 if (!shell.isRoot) {
+                    shell.close()
                     shell = null
                 }
             } catch (_: NoShellException) {
@@ -74,9 +85,6 @@ internal class BuilderImpl : Shell.Builder() {
 
         // Try normal non-root shell
         if (shell == null) {
-            if (!hasFlags(Shell.FLAG_NON_ROOT_SHELL)) {
-                Utils.setConfirmedRootState(false)
-            }
             shell = exec("sh")
         }
 
@@ -86,6 +94,7 @@ internal class BuilderImpl : Shell.Builder() {
     private fun exec(vararg commands: String?): ShellImpl {
         try {
             Utils.log(TAG, "exec " + TextUtils.join(" ", commands))
+            StartupAttempt.current.get()?.ensureActive()
             val process = Runtime.getRuntime().exec(commands)
             return build(process)
         } catch (e: IOException) {
@@ -95,6 +104,9 @@ internal class BuilderImpl : Shell.Builder() {
     }
 
     override fun build(process: Process?): ShellImpl {
+        if (StartupAttempt.current.get() == null) {
+            return StartupAttempt(timeout) { build(process) }.await()
+        }
         if (process == null) {
             throw NoShellException("Process cannot be null!, Unable to create a shell!")
         }
@@ -109,19 +121,24 @@ internal class BuilderImpl : Shell.Builder() {
         if (hasFlags(Shell.FLAG_REDIRECT_STDERR)) {
             Shell.enableLegacyStderrRedirection = true
         }
-        MainShell.cached = (shell)
+        StartupAttempt.current.get()!!.provisional = shell
         if (initializers != null) {
             for (init in initializers) {
                 if (init != null && !init.onInit(shell)) {
-                    MainShell.cached = (null)
+                    shell.close()
+                    StartupAttempt.current.get()!!.provisional = null
                     throw NoShellException("Unable to init shell")
                 }
             }
         }
+        StartupAttempt.current.get()!!.ensureActive()
         return shell
     }
 
     override fun build(): ShellImpl {
+        if (StartupAttempt.current.get() == null) {
+            return StartupAttempt(timeout) { build() }.await()
+        }
         return if (command != null) {
             exec(*command!!)
         } else {

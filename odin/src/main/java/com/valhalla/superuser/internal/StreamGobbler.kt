@@ -34,7 +34,8 @@ internal abstract class StreamGobbler<T>(
         do {
             line = br.readLine()
         } while (outputAndCheck(line))
-        return if (res) br.readLine() else null
+        if (line == null) throw IOException("Shell output ended before completion marker")
+        return if (res) br.readLine() ?: throw IOException("Missing shell exit code") else null
     }
 
     internal class OUT(`in`: InputStream?, list: MutableList<String?>?) :

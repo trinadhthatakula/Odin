@@ -1,205 +1,67 @@
 ---
 name: odin
-description: >-
-  Integrate the Odin root-shell + RootService library (com.trinadhthatakula:odin) into an Android
-  app. Use when a task asks to run root/su commands, check for root, stream shell output, or run
-  privileged code via a RootService — i.e. reaches for getShellAwait, isRootGranted, exec/ShellResult,
-  asFlow/ShellLine, fastCmd, or RootService. Covers dependency setup, the coroutine API, the
-  persistent-root-shell model, Java-interop, and gotchas. Targets Odin 1.0.x.
+description: Integrate com.trinadhthatakula:odin into Android apps using root shell commands, isolated cancellation, explicit root refresh, streaming output, or RootService IPC. Covers Maven Local validation and the public lifecycle contracts.
 ---
 
-# Odin root-shell integration
+# Odin integration
 
-Odin gives an Android app a **persistent root shell** with a Kotlin-coroutine API, plus a generic
-`RootService` (Binder/AIDL) framework for running privileged code in a root process. It is a
-Kotlin-first reimagining of [libsu](https://github.com/topjohnwu/libsu). The coroutine surface lives
-in `com.valhalla.superuser.ktx` / `com.valhalla.superuser.utils`; the core `Shell` engine and
-`RootService` live in `com.valhalla.superuser` / `com.valhalla.superuser.ipc`.
+Odin is an Android root-shell and Binder RootService library. Coordinate `com.trinadhthatakula:odin`; core package `com.valhalla.superuser`, coroutine extensions `com.valhalla.superuser.ktx`, IPC `com.valhalla.superuser.ipc`. Android minSdk 24; build Odin on JDK 21. Root requires application authorization through a root manager; ADB root is not evidence of application authorization.
 
-Coordinate: `com.trinadhthatakula:odin` · package `com.valhalla.superuser` · Maven Central.
-Targets: **Android** (`minSdk` 24), JDK 21.
+Before editing an app, inspect its dependency/version catalog, privilege routing, command lifecycle, and existing shell ownership. Verify exact signatures in the resolved version or `odin/api/odin.api`. The lifecycle API described here is introduced in 1.1.0; do not use it with 1.0.0.
 
-## 1. Add the dependency
+## Dependency and local validation
 
-Ensure `mavenCentral()` is in the repositories, then:
+Use `mavenCentral()` and pin a published version. During cross-repository work, publish a unique candidate rather than overwriting a released coordinate:
 
-```kotlin
-// Android app — build.gradle.kts
-dependencies { implementation("com.trinadhthatakula:odin:1.0.0") }
+```sh
+JAVA_HOME=/path/to/jdk21 ./gradlew publishToMavenLocal -PVERSION_NAME=1.1.0-my-change-SNAPSHOT
 ```
 
-Use the latest 1.0.x. Odin depends on Kotlin coroutines transitively, so `Flow`/`suspend` types are
-available at your call sites. A device with a working `su` (Magisk/KernelSU/APatch, or an emulator
-image with root) is required at runtime — Odin does not grant root, it *drives* it.
+Add `mavenLocal()` scoped exclusively to that candidate coordinate/version and override the consumer dependency explicitly. Disable any Odin composite substitution while validating the Maven artifact. Verify `dependencyInsight` resolves the candidate; assemble and test the consumer. Restore/pin the Central release after publication. Existing Thor supports `-PodinLocalVersion=<candidate>` for this workflow.
 
-## 2. Core rules
+## Choose execution semantics
 
-- **Single persistent shell, serial pipe.** Odin holds **one** process-wide main root shell. Every
-  command is written to that shell's stdin and its output drained from stdout/stderr — a shared
-  **serial** resource. Commands do not run in parallel; they queue. Do not architect around
-  concurrent shells (per-command / isolated shells are not offered in this release).
-- **Coroutine-first — never block the UI.** Inject/hold a `ShellRepository` (via Koin/Hilt, or
-  `RealShellRepository()`) and call its `suspend` methods (`isRootGranted()`, `exec()`) from a
-  coroutine. The low-level accessors (`getShellAwait()`, the `Shell.fastCmd` extensions) are also
-  `suspend`. Never call the blocking `Shell.getShell()` / `ShellUtils.fastCmd(...)` on the main
-  thread — prefer the `suspend` equivalents.
-- **The shell is a shared serial resource.** Because output must be drained continuously, a
-  long-running or high-volume command occupies the shell until it finishes (see the `asFlow`
-  cancellation contract). Keep commands bounded, or dedicate a stream and let it complete.
-- **Never-throws result model.** `exec()` reports command *and* transport failures through the
-  returned `ShellResult` (see Gotchas) — branch on the result, don't wrap in `try/catch`
-  (`CancellationException` is the one thing that still propagates).
+- `ShellRepository.exec(vararg commands)` returns `ShellResult(code, stdout, stderr)`, with one combined output and the last-command exit code. Nonzero command exit is an ordinary result. `JOB_NOT_EXECUTED` (-1) indicates transport failure and may occur after side effects; never assume a failed transport proves no mutation happened. `CancellationException` propagates.
+- Legacy `Shell.Job.await()` and `asFlow()` cancellation stops waiting/collection; it does not terminate the command. The shared shell stays occupied until execution/drain finishes. `asFlow()` emits tagged `ShellLine`s and uses an unlimited channel; do not use it for an unbounded stream without an explicit lifetime and memory plan.
+- Legacy jobs run in the persistent shell: `cd`, exports, functions and sourced scripts can affect later jobs; top-level `exit` kills that shell.
+- Opt-in `shell.prepareIsolatedJob(*commands)` prepares a single-use `JobHandle`; `submit()` commits it once. `shell.submitIsolated(*commands)` combines both. Commands share state within that job, inherit cwd/exported environment, and do not mutate the persistent shell state. Functions and other unexported state are not inherited. Output is captured to temporary files and delivered at completion; this is not a streaming API.
+- Isolated jobs require Android toybox `setsid -w` and a separately acquired control shell with matching root identity. Control acquisition can be denied even when the original root shell remains alive. In that case user work is not dispatched.
 
-## 3. API reference (1.0)
+## Cancellation and acknowledgement
 
-Condensed public signatures. `ktx` = `com.valhalla.superuser.ktx`, `utils` =
-`com.valhalla.superuser.utils`, core = `com.valhalla.superuser`, ipc = `com.valhalla.superuser.ipc`.
-
-**Repository — the primary entry point (`ktx`)**
 ```kotlin
-interface ShellRepository {
-    suspend fun isRootGranted(): Boolean               // bounded (~10s), never hangs, never throws → false on init failure
-    suspend fun exec(vararg commands: String): ShellResult   // NEVER throws for shell/command failure
+import com.valhalla.superuser.ktx.await
+import com.valhalla.superuser.ktx.getShellAwait
 
-    @Deprecated("lossy; use exec()") suspend fun runCommand(command: String): Result<List<String>>
-    @Deprecated("lossy; use exec()") suspend fun runCommands(vararg commands: String): Result<List<String>>
-}
-class RealShellRepository() : ShellRepository        // the concrete impl — construct or inject
+val shell = getShellAwait()
+val handle = shell.prepareIsolatedJob("your bounded command")
+handle.submit()
+// Another owner can call handle.cancel(). Awaiting coroutine cancellation alone does not do so.
+val outcome = handle.await()
 ```
 
-**Results (`ktx`)**
-```kotlin
-data class ShellResult(val code: Int, val stdout: List<String>, val stderr: List<String>) {
-    val isSuccess: Boolean                            // code == 0
-    companion object { const val JOB_NOT_EXECUTED: Int = -1 }   // transport failure sentinel (dead shell/broken pipe)
-}
-data class ShellLine(val text: String, val isError: Boolean)    // isError → came from STDERR
-```
+A handle identifies one execution, not a reusable command builder. Cancel before submission or while queued guarantees it never starts. Cancel during execution requests TERM, then KILL escalation, with a bounded control deadline. `cancel()` is idempotent while pending; await `completion` (Java CompletionStage) or `await()` before releasing a consumer lease.
 
-**Coroutine extensions (`ktx`)**
-```kotlin
-suspend fun getShellAwait(): Shell                   // process-wide main Shell; resumes EXCEPTIONALLY on hard init failure
-suspend fun Shell.Job.await(): Shell.Result          // run one job, suspend for the core Shell.Result
-fun Shell.Job.asFlow(): Flow<ShellLine>              // stream STDOUT+STDERR line-by-line (unlimited buffer)
-```
+Branch on `JobOutcome.kind`: `EXITED`, `CANCELLED`, `FAILED`, `TERMINATION_UNCONFIRMED`. Check `terminationConfirmed`, `outputDrained`, `shellReusable`, `started` and nullable `exitCode`; preserve failure details without logging payloads. Confirmed termination covers processes that remain in the job process group. Deliberately detached descendants are outside the guarantee. Odin retires same-group children after normal parent exit too. Cancel does not undo settings, filesystem or other side effects; never automatically retry uncertain mutations.
 
-**Quick one-liners — `suspend` extensions on a held `Shell` (`utils`)**
-```kotlin
-suspend fun Shell.fastCmd(vararg commands: String): String     // LAST stdout line, or "" if no valid output
-suspend fun Shell.fastCmdResult(vararg commands: String): Boolean   // true iff exit code == 0
-fun escapeForShell(s: String): String                          // quote an argument for shell interpolation
-// (Blocking equivalents exist on the ShellUtils object in `com.valhalla.superuser` — avoid on the main thread.)
-```
+If a calling coroutine owns the job lifetime, explicitly request cancellation in its catch/finally and await acknowledgement under `NonCancellable`. Preserve the original cancellation. If acknowledgement is uncertain, surface that state and do not silently release a lease as if the command succeeded. Keep existing process watchdogs until the relevant device/root-manager acceptance checks justify removal.
 
-**Core engine (`com.valhalla.superuser`) — usually only needed for streaming/`fastCmd`**
-```kotlin
-Shell.cmd(vararg commands: String): Shell.Job        // Shell.Companion — build a job on the main shell
-Shell.cmd(input: InputStream): Shell.Job
-Shell.getShell(): Shell                              // BLOCKING accessor (prefer suspend getShellAwait())
-val Shell.isRoot: Boolean                            // is this shell a root shell
-abstract class Shell.Job { fun exec(): Shell.Result; fun submit(); fun add(vararg String): Job /* ... */ }
-abstract class Shell.Result { val code: Int; val out: List<String>; val err: List<String>
-    val stdout: List<String>; val stderr: List<String>; val isSuccess: Boolean
-    companion object { const val JOB_NOT_EXECUTED: Int } }
-```
+## Root refresh and startup
 
-**RootService IPC (`com.valhalla.superuser.ipc`)**
-```kotlin
-abstract class RootService : ContextWrapper {
-    abstract fun onBind(intent: Intent): IBinder      // return your AIDL Stub
-    protected fun enforceCaller()                     // allow only UID 0 / 1000 / the starting UID; else SecurityException
-    fun stopSelf()
-    companion object {
-        fun bind(intent: Intent, conn: ServiceConnection)
-        fun bind(intent: Intent, executor: Executor, conn: ServiceConnection)
-        fun unbind(conn: ServiceConnection)           // detach this connection
-        fun stop(intent: Intent)                      // tear down the whole root process
-        fun bindOrTask(intent, executor, conn): Shell.Task?   // advanced: return the task instead of running it
-        fun stopOrTask(intent): Shell.Task?
-    }
-    const val CATEGORY_DAEMON_MODE: String            // add to intent to survive unbinds (daemon mode)
-}
-```
+`Shell.isRoot` describes the cached shell identity; it does not prove current root-manager policy permits new requests. `Shell.isAppGrantedRoot` is a cached observation too. `Shell.invalidateRootAvailability()` marks observations stale without interrupting accepted work. Coroutine `refreshRootAvailability()` returns a fresh `RootAvailability`; the blocking companion method is for Java/worker callers.
 
-## 4. Recipes
+Refresh gracefully retires accepted main-shell work, then makes a fresh acquisition. `ROOT` and `NON_ROOT` describe the acquired shell; `BUSY`, `TIMED_OUT` and `FAILED` must not be presented as proven denial. Concurrent requests share an attempt. A denied new request does not revoke the UID of an existing shell. Preserve the app's provider selection/fallback rules. Do not infer loss of root from an arbitrary nonzero exit or permission-denied payload.
 
-Root check → run a command → read the lossless result:
-```kotlin
-val shell: ShellRepository = RealShellRepository()   // or inject it
+Startup publishes the shell only after handshake and initializers complete. One caller cancelling its await does not stop a shared attempt. Initializers must cooperate with deadlines; arbitrary blocking application code cannot be force-stopped safely. Never perform blocking shell acquisition/exec on the UI thread.
 
-if (shell.isRootGranted()) {
-    val r = shell.exec("id", "getprop ro.build.version.sdk")   // one combined job, one result
-    when {
-        r.code == ShellResult.JOB_NOT_EXECUTED -> log("shell unavailable: ${r.stderr}")
-        r.isSuccess -> render(r.stdout)                         // exit code of the LAST command
-        else -> log("failed (code=${r.code}): ${r.stderr}")
-    }
-}
-```
+## RootService
 
-Stream long/high-volume output line-by-line:
-```kotlin
-Shell.cmd("logcat -d").asFlow().collect { line: ShellLine ->
-    println(if (line.isError) "E: ${line.text}" else line.text)
-}
-```
+Subclass `RootService`, return an AIDL Stub from `onBind`, declare the service non-exported, and call `enforceCaller()` in privileged AIDL methods. Bind/unbind according to the existing application lifecycle; `stop()` tears down the service process. RootService is separate from Shell.Job cancellation and does not return ShellResult automatically. Follow the resolved version's RootService signatures and `docs/USAGE.md` examples.
 
-Terse single-value query off a held `Shell`:
-```kotlin
-val s = getShellAwait()                               // suspends; throws on hard shell-init failure
-val sdk = s.fastCmd("getprop ro.build.version.sdk")   // last stdout line
-val rooted = s.fastCmdResult("which su")              // exit code == 0
-```
+## Evidence before adoption
 
-RootService — run privileged code in a root process:
-```kotlin
-class MyRootService : RootService() {
-    override fun onBind(intent: Intent): IBinder = object : IMyAidl.Stub() {
-        override fun doPrivilegedThing() { enforceCaller(); /* runs as root */ }
-    }
-}
-// Declare in the manifest as a non-exported <service>. Bind/unbind from the main thread:
-val intent = Intent(context, MyRootService::class.java)
-RootService.bind(intent, connection)      // starts the root process if needed
-// ... later:
-RootService.unbind(connection)            // or RootService.stop(intent) to kill the root process
-```
+Test real application/gateway authority. Use disposable commands with submission/process markers and verify next-job output isolation, queued cancellation, ignored TERM, surviving children, shell death, refresh and startup cleanup. Record SHA, artifact version, API/root manager, passed/failed/skipped counts and unsupported cases. A skipped opt-in test is not a pass. Publish to Central only when the user has authorized release and the required gates pass; this skill does not itself authorize publication.
 
-## 5. Gotchas
-
-- **`exec()` NEVER throws for shell/command failure — check the result.** A non-zero command exit
-  returns the real `code` with `isSuccess == false`. A *transport* failure (dead shell, broken pipe,
-  `NoShellException`) sets `code == ShellResult.JOB_NOT_EXECUTED` (-1). `stderr` carries the failure
-  message **only when the shell-init accessor itself throws**; if the shell dies after init, `stderr`
-  MAY be empty. Detect transport failure by `code == ShellResult.JOB_NOT_EXECUTED` (never by
-  whether `stderr` is populated), branch on `isSuccess`, and do not rely on `try/catch`. Only
-  `CancellationException` still propagates.
-- **`vararg` = one job, one result.** All commands in a single `exec(...)` run as one shell job:
-  `stdout`/`stderr` are the combined output, and `code` is the exit code of the **last** command.
-  Call `exec()` once per command if you need a result each.
-- **`asFlow` cancellation contract.** Cancelling the collector (`take(n)`, `first()`, or cancelling
-  the coroutine) stops emission immediately, **but the in-flight command keeps running to completion
-  in the background on the shared shell** (its output is discarded). You cannot kill a running
-  command by cancelling the collector in this release. The backing channel is unlimited (the pipe
-  must drain), so output is never dropped; the flow closes with the failure cause on transport error
-  (a `JOB_NOT_EXECUTED` result closes it with `NoShellException`).
-- **`enableLegacyStderrRedirection` collapses the STDOUT/STDERR split.** `exec()`'s `stderr` and
-  `asFlow()`'s `isError` tagging assume the default `Shell.enableLegacyStderrRedirection = false`.
-  Setting it `true` folds STDERR into STDOUT (`exec` yields empty `stderr`; every `asFlow` line is
-  tagged `isError = false`). Leave it at the default if you rely on separated streams.
-- **`isRootGranted()` is failure-safe**, not a live capability gate: it is bounded (~10 s upper
-  bound, never hangs) and resolves to `false` — never throws — on shell-init failure. `getShellAwait()`
-  is the opposite: it *resumes exceptionally* on hard init failure (underlying cause, or
-  `NoShellException`). Wrap `getShellAwait()` where you need to react to that.
-- **`runCommand` / `runCommands` are deprecated** (they returned a lossy `Result<List<String>>` —
-  STDOUT only; exit code + STDERR dropped). Migrate to `exec()`: `getOrNull()` → `.stdout`,
-  `isFailure` → `!isSuccess`, and you additionally get `.code` / `.stderr`. The IDE `ReplaceWith`
-  quick-fix rewrites `runCommand(cmd)` → `exec(cmd)`.
-- **Two `fastCmd` families:** the `suspend` extensions on `Shell` in `com.valhalla.superuser.utils`
-  (coroutine-safe — use these) vs. the blocking `ShellUtils` object in `com.valhalla.superuser`
-  (Java-heritage; never on the main thread).
-- **RootService must be non-exported** and every AIDL method should call `enforceCaller()`. Use
-  `unbind` to detach, `stop` to tear the root process down, `CATEGORY_DAEMON_MODE` to keep it alive
-  across unbinds. If root is unavailable, `bind`/`stop` are no-ops.
-- Verify exact current signatures against the sources under `com/valhalla/superuser/` (and the frozen
-  `odin/api/odin.api`) if a param is uncertain — this is a condensed reference.
+Nested watchdogs such as toybox `timeout` must use `--foreground` inside isolated jobs: the default
+creates a new process group and moves helpers outside Odin cancellation scope. Commands that
+explicitly detach or change process group require their own termination contract.

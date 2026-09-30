@@ -35,7 +35,7 @@ signingInMemoryKeyPassword=<key passphrase>
 > **Build on JDK 21.** This project mandates JDK 21 (Zulu/Corretto). If your machine's default
 > `java` is newer (e.g. JDK 26), the javadoc/Dokka step fails with an `IllegalArgumentException`.
 > Either set `JAVA_HOME` to a JDK 21, or pass `-Dorg.gradle.java.home=/path/to/jdk-21` to the
-> Gradle commands below. AGP is pinned to **9.3.0** (compileSdk 37) for reproducible builds.
+> Gradle commands below. Read the current AGP/compiler versions in `gradle/libs.versions.toml` and `odin/build.gradle.kts`.
 
 1. Bump `VERSION_NAME` in `gradle.properties` (SemVer).
 - Optional local dry-run without a GPG key (SNAPSHOT versions are exempt from signing):
@@ -53,8 +53,7 @@ signingInMemoryKeyPassword=<key passphrase>
 `odin/api/odin.api` is the frozen public ABI, enforced by a hand-wired
 binary-compatibility-validator (BCV) task graph in `odin/build.gradle.kts` (AGP uses its built-in
 Kotlin, which BCV does not auto-hook). The BCV worker classpath pins
-`org.jetbrains.kotlin:kotlin-metadata-jvm` to the Kotlin version AGP bundles (currently `2.2.10`, see
-the inline comment on `bcvWorkerClasspath`) so the ABI reader parses `@Metadata` correctly.
+`org.jetbrains.kotlin:kotlin-metadata-jvm` to the Kotlin version AGP bundles (read the current `bcvWorkerClasspath` pin) so the ABI reader parses `@Metadata` correctly.
 
 **On any AGP upgrade:**
 1. Bump the `kotlin-metadata-jvm` coordinate in `bcvWorkerClasspath` to match the new AGP-bundled
@@ -70,9 +69,16 @@ are excluded — so adding module-internal seams never requires a dump change.
 `.github/workflows/publish.yml` publishes automatically on every push to the **`production`** branch.
 
 **Release flow:**
-1. Bump `VERSION_NAME` in `gradle.properties` on `main` and commit.
-2. Merge / push that commit to the `production` branch.
-3. The workflow runs `./gradlew publishToMavenCentral` on JDK 21 and auto-promotes the release.
+1. Implement on a topic branch, bump `VERSION_NAME`, review the additive API dump, and run
+   `:odin:testDebugUnitTest :odin:lintDebug :odin:assembleRelease :odin:apiCheck` on JDK 21.
+2. Publish a unique Maven Local candidate and validate the real consumer/device lifecycle contract.
+   Thor supports `-PodinLocalVersion=<candidate>`; confirm the resolved Maven artifact with
+   `:app:dependencyInsight --dependency com.trinadhthatakula:odin --configuration fossDebugRuntimeClasspath`.
+3. After the required gates pass and the user authorizes release, integrate the topic change and
+   push the validated release commit to `production` without force-pushing.
+4. The workflow repeats the build/unit/lint/API gates, then runs `publishToMavenCentral` on JDK 21
+   and auto-promotes the release. Verify the run and the published POM/AAR in Central.
+5. Pin consumers to the Central version and rerun the consumer gates without the local override.
 
 Pushing the same `VERSION_NAME` twice fails (Central rejects duplicate coordinates) — that is the
 intended guard against accidental double-publishes. Always bump `VERSION_NAME` before releasing.

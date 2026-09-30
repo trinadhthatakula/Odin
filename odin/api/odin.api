@@ -19,9 +19,93 @@ public abstract class com/valhalla/superuser/CallbackList : java/util/AbstractLi
 	public final fun size ()I
 }
 
+public final class com/valhalla/superuser/JobHandle {
+	public final fun await (JLjava/util/concurrent/TimeUnit;)Lcom/valhalla/superuser/JobOutcome;
+	public final fun cancel ()Z
+	public final fun getCompletion ()Ljava/util/concurrent/CompletionStage;
+	public final fun getState ()Lcom/valhalla/superuser/JobState;
+	public final fun submit ()Lcom/valhalla/superuser/JobHandle;
+}
+
+public final class com/valhalla/superuser/JobOutcome {
+	public fun <init> (Lcom/valhalla/superuser/JobOutcomeKind;Ljava/lang/Integer;Ljava/util/List;Ljava/util/List;ZZZZLjava/lang/String;)V
+	public final fun component1 ()Lcom/valhalla/superuser/JobOutcomeKind;
+	public final fun component2 ()Ljava/lang/Integer;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Ljava/util/List;
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()Z
+	public final fun component8 ()Z
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy (Lcom/valhalla/superuser/JobOutcomeKind;Ljava/lang/Integer;Ljava/util/List;Ljava/util/List;ZZZZLjava/lang/String;)Lcom/valhalla/superuser/JobOutcome;
+	public static synthetic fun copy$default (Lcom/valhalla/superuser/JobOutcome;Lcom/valhalla/superuser/JobOutcomeKind;Ljava/lang/Integer;Ljava/util/List;Ljava/util/List;ZZZZLjava/lang/String;ILjava/lang/Object;)Lcom/valhalla/superuser/JobOutcome;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExitCode ()Ljava/lang/Integer;
+	public final fun getFailure ()Ljava/lang/String;
+	public final fun getKind ()Lcom/valhalla/superuser/JobOutcomeKind;
+	public final fun getOutputDrained ()Z
+	public final fun getShellReusable ()Z
+	public final fun getStarted ()Z
+	public final fun getStderr ()Ljava/util/List;
+	public final fun getStdout ()Ljava/util/List;
+	public final fun getTerminationConfirmed ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/valhalla/superuser/JobOutcomeKind : java/lang/Enum {
+	public static final field CANCELLED Lcom/valhalla/superuser/JobOutcomeKind;
+	public static final field EXITED Lcom/valhalla/superuser/JobOutcomeKind;
+	public static final field FAILED Lcom/valhalla/superuser/JobOutcomeKind;
+	public static final field TERMINATION_UNCONFIRMED Lcom/valhalla/superuser/JobOutcomeKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/valhalla/superuser/JobOutcomeKind;
+	public static fun values ()[Lcom/valhalla/superuser/JobOutcomeKind;
+}
+
+public final class com/valhalla/superuser/JobState : java/lang/Enum {
+	public static final field CANCELLING Lcom/valhalla/superuser/JobState;
+	public static final field DRAINING Lcom/valhalla/superuser/JobState;
+	public static final field FINISHED Lcom/valhalla/superuser/JobState;
+	public static final field PREPARED Lcom/valhalla/superuser/JobState;
+	public static final field QUEUED Lcom/valhalla/superuser/JobState;
+	public static final field RUNNING Lcom/valhalla/superuser/JobState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/valhalla/superuser/JobState;
+	public static fun values ()[Lcom/valhalla/superuser/JobState;
+}
+
 public final class com/valhalla/superuser/NoShellException : java/lang/RuntimeException {
 	public fun <init> (Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+}
+
+public final class com/valhalla/superuser/RootAvailability {
+	public fun <init> (Lcom/valhalla/superuser/RootAvailabilityKind;JLjava/lang/String;)V
+	public final fun component1 ()Lcom/valhalla/superuser/RootAvailabilityKind;
+	public final fun component2 ()J
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Lcom/valhalla/superuser/RootAvailabilityKind;JLjava/lang/String;)Lcom/valhalla/superuser/RootAvailability;
+	public static synthetic fun copy$default (Lcom/valhalla/superuser/RootAvailability;Lcom/valhalla/superuser/RootAvailabilityKind;JLjava/lang/String;ILjava/lang/Object;)Lcom/valhalla/superuser/RootAvailability;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFailure ()Ljava/lang/String;
+	public final fun getGeneration ()J
+	public final fun getKind ()Lcom/valhalla/superuser/RootAvailabilityKind;
+	public fun hashCode ()I
+	public final fun isRoot ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/valhalla/superuser/RootAvailabilityKind : java/lang/Enum {
+	public static final field BUSY Lcom/valhalla/superuser/RootAvailabilityKind;
+	public static final field FAILED Lcom/valhalla/superuser/RootAvailabilityKind;
+	public static final field NON_ROOT Lcom/valhalla/superuser/RootAvailabilityKind;
+	public static final field ROOT Lcom/valhalla/superuser/RootAvailabilityKind;
+	public static final field TIMED_OUT Lcom/valhalla/superuser/RootAvailabilityKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/valhalla/superuser/RootAvailabilityKind;
+	public static fun values ()[Lcom/valhalla/superuser/RootAvailabilityKind;
 }
 
 public abstract class com/valhalla/superuser/Shell : java/io/Closeable {
@@ -39,9 +123,13 @@ public abstract class com/valhalla/superuser/Shell : java/io/Closeable {
 	public fun <init> ()V
 	public abstract fun execTask (Lcom/valhalla/superuser/Shell$Task;)V
 	public abstract fun getStatus ()I
+	public static final fun invalidateRootAvailability ()V
 	public abstract fun isAlive ()Z
 	public final fun isRoot ()Z
 	public abstract fun newJob ()Lcom/valhalla/superuser/Shell$Job;
+	public final fun prepareIsolatedJob ([Ljava/lang/String;)Lcom/valhalla/superuser/JobHandle;
+	public static final fun refreshRootAvailability ()Lcom/valhalla/superuser/RootAvailability;
+	public final fun submitIsolated ([Ljava/lang/String;)Lcom/valhalla/superuser/JobHandle;
 	public abstract fun submitTask (Lcom/valhalla/superuser/Shell$Task;)V
 	public final fun waitAndClose ()V
 	public abstract fun waitAndClose (JLjava/util/concurrent/TimeUnit;)Z
@@ -70,7 +158,9 @@ public final class com/valhalla/superuser/Shell$Companion {
 	public final fun getShell ()Lcom/valhalla/superuser/Shell;
 	public final fun getShell (Lcom/valhalla/superuser/Shell$GetShellCallback;)V
 	public final fun getShell (Ljava/util/concurrent/Executor;Lcom/valhalla/superuser/Shell$GetShellCallback;)V
+	public final fun invalidateRootAvailability ()V
 	public final fun isAppGrantedRoot ()Ljava/lang/Boolean;
+	public final fun refreshRootAvailability ()Lcom/valhalla/superuser/RootAvailability;
 	public final fun rootAccess ()Z
 	public final fun setDefaultBuilder (Lcom/valhalla/superuser/Shell$Builder;)V
 }
@@ -173,8 +263,10 @@ public final class com/valhalla/superuser/ktx/RealShellRepository : com/valhalla
 
 public final class com/valhalla/superuser/ktx/ShellExtensionsKt {
 	public static final fun asFlow (Lcom/valhalla/superuser/Shell$Job;)Lkotlinx/coroutines/flow/Flow;
+	public static final fun await (Lcom/valhalla/superuser/JobHandle;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun await (Lcom/valhalla/superuser/Shell$Job;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun getShellAwait (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun refreshRootAvailability (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/valhalla/superuser/ktx/ShellLine {

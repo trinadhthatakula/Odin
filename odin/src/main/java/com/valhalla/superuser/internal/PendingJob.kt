@@ -55,6 +55,10 @@ internal class PendingJob : JobTask() {
             override fun onShell(shell: Shell) {
                 (shell as ShellImpl).submitTask(this@PendingJob)
             }
+            override fun onShellDied(error: Throwable?) {
+                retryTask = null
+                super@PendingJob.shellDied()
+            }
         })
     }
 

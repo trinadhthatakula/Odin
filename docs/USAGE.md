@@ -279,3 +279,72 @@ if (r.isSuccess) {
 The IDE's `ReplaceWith` quick-fix on the deprecation will rewrite `runCommand(cmd)` → `exec(cmd)`
 and `runCommands(*commands)` → `exec(*commands)` for you; adjust the call site to read `.stdout` /
 `.isSuccess` off the returned `ShellResult` instead of unwrapping a `Result`.
+
+
+## Isolated jobs and cancellation
+
+Introduced in 1.1.0. Existing `exec()`, `Shell.Job.await()` and `asFlow()` preserve their
+persistent-shell and wait-only cancellation contracts. For explicit termination, prepare a
+single-use isolated execution:
+
+```kotlin
+import com.valhalla.superuser.JobOutcomeKind
+import com.valhalla.superuser.ktx.await
+import com.valhalla.superuser.ktx.getShellAwait
+
+val shell = getShellAwait()
+val handle = shell.prepareIsolatedJob("your bounded command")
+handle.submit()
+// The owner may request handle.cancel() from another coroutine/thread.
+val result = handle.await()
+when (result.kind) {
+    JobOutcomeKind.EXITED -> println("exit=${result.exitCode}")
+    JobOutcomeKind.CANCELLED -> println("termination=${result.terminationConfirmed}")
+    JobOutcomeKind.FAILED, JobOutcomeKind.TERMINATION_UNCONFIRMED -> println(result.failure)
+}
+```
+
+`submitIsolated(*commands)` prepares and submits at once. Cancellation before dispatch prevents
+execution. Cancellation after dispatch requests TERM, then KILL, with a five-second cancellation
+control deadline. Completion is delivered after process-group verification, output-reader/control
+cleanup and fixture retirement. Check `terminationConfirmed`, `outputDrained` and `shellReusable`
+before declaring a consumer lease safe. A failed guarantee quarantines the affected shell; Odin
+never silently retries a possibly executed mutation. Cancellation cannot roll back side effects.
+
+The execution scope includes descendants remaining in the process group. Deliberately detached
+children are outside it. Normal parent completion also retires surviving same-group children.
+Commands share cwd/environment within one job and inherit the persistent shell's cwd/exported
+variables; changes never persist into later jobs. Shell functions and unexported variables are not
+inherited. An `exit` within the isolated script does not kill the persistent shell.
+
+Output is captured in private app-cache files, then returned as stdout/stderr lists at completion.
+This API is for bounded commands, not indefinite streaming. It requires toybox `setsid -w` and an
+independent control shell with matching root identity; if fresh control acquisition is denied,
+Odin fails before dispatch. Existing `asFlow()` remains the streaming API.
+
+Java callers can observe `JobHandle.completion` (`CompletionStage<JobOutcome>`) or use its blocking
+`await(timeout, TimeUnit)` off the UI thread. Cancelling an observing future/coroutine does not
+request job termination. An owner that wants that behavior must explicitly call `cancel()` and
+await acknowledgement under `NonCancellable` while preserving the original cancellation.
+
+## Explicit root refresh
+
+`Shell.isRoot` describes an existing shell identity. A root manager may deny new requests while
+that shell still has UID 0. `Shell.invalidateRootAvailability()` marks both cached observations
+stale without interrupting accepted work. Coroutine `refreshRootAvailability()` gracefully retires
+accepted main-shell work and obtains a fresh shell. Concurrent calls share an attempt.
+
+The returned `RootAvailability.kind` is `ROOT`, `NON_ROOT`, `BUSY`, `TIMED_OUT` or `FAILED`.
+`BUSY` means accepted work prevented retirement within five seconds; it is not killed or replayed.
+`TIMED_OUT` and `FAILED` do not prove denial. Preserve provider fallback rules and record the actual
+root manager. The existing Boolean availability API remains a convenience view, not a live policy
+guarantee. Arbitrary command failure is not grounds for declaring root revoked.
+
+Builder timeout now bounds acquisition, verification and initialization together. Only ready
+shells are published. Failed attempts destroy owned processes and interrupt workers; application
+initializers must cooperate with interruption because arbitrary Java code cannot be force-stopped
+safely. One caller cancelling its await does not cancel shared initialization.
+
+Nested watchdogs such as toybox `timeout` must use `--foreground` inside isolated jobs: the default
+creates a new process group and moves helpers outside Odin cancellation scope. Commands that
+explicitly detach or change process group require their own termination contract.
