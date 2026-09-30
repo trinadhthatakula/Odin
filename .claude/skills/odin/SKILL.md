@@ -1,67 +1,72 @@
 ---
 name: odin
-description: Integrate com.trinadhthatakula:odin into Android apps using root shell commands, isolated cancellation, explicit root refresh, streaming output, or RootService IPC. Covers Maven Local validation and the public lifecycle contracts.
+description: Integrate or migrate the Odin Android root-shell and RootService library in an app. Use for com.trinadhthatakula:odin, privileged shell execution, isolated job cancellation, root refresh, or Binder code running as root.
 ---
 
 # Odin integration
 
-Odin is an Android root-shell and Binder RootService library. Coordinate `com.trinadhthatakula:odin`; core package `com.valhalla.superuser`, coroutine extensions `com.valhalla.superuser.ktx`, IPC `com.valhalla.superuser.ipc`. Android minSdk 24; build Odin on JDK 21. Root requires application authorization through a root manager; ADB root is not evidence of application authorization.
+Coordinate: `com.trinadhthatakula:odin:1.1.0`. Packages: `com.valhalla.superuser` (core),
+`com.valhalla.superuser.ktx` (coroutines/repository), `com.valhalla.superuser.ipc` (RootService).
+Odin is Android-only, minSdk 24; 1.1.0 has JVM 21 bytecode. Verify the consumer's Android build
+toolchain can consume it. A multiplatform app integrates Odin in its Android source set.
+Root comes from the app's authorization through Magisk/KernelSU/etc.; adb root proves nothing
+about app authorization. Odin does not grant Android runtime or special-access permissions.
 
-Before editing an app, inspect its dependency/version catalog, privilege routing, command lifecycle, and existing shell ownership. Verify exact signatures in the resolved version or `odin/api/odin.api`. The lifecycle API described here is introduced in 1.1.0; do not use it with 1.0.0.
+Inspect the app's version catalog, root/provider routing, shell ownership and command lifetimes
+before editing. Preserve its DI framework and fallback rules. Prefer its repository or gateway
+over static shell calls in UI code. Do not run blocking acquisition/exec on the main thread.
+Lifecycle APIs below require 1.1.0 or later; verify the resolved version's signatures.
 
-## Dependency and local validation
+## Select the execution contract
 
-Use `mavenCentral()` and pin a published version. During cross-repository work, publish a unique candidate rather than overwriting a released coordinate:
+| App need | Odin API | Contract |
+|---|---|---|
+| Bounded persistent commands | `ShellRepository.exec(...)` | Combined output, last-command exit; wait cancellation leaves execution running. |
+| Stateful shell jobs | `getShellAwait().newJob()` | `cd`, exports/functions/sourcing persist; top-level `exit` kills that shell. |
+| Bounded commands with termination | `prepareIsolatedJob(...)` / `submitIsolated(...)` | Single-use handle, explicit cancellation, output delivered at completion. |
+| Finite line-by-line output | `Shell.Job.asFlow()` | Tagged streams, unlimited channel; cancelling collection leaves the command running. |
+| Privileged Kotlin/Java framework calls | `RootService` + AIDL | Separate Binder process/lifecycle; shell-job cancellation does not cancel IPC work. |
 
-```sh
-JAVA_HOME=/path/to/jdk21 ./gradlew publishToMavenLocal -PVERSION_NAME=1.1.0-my-change-SNAPSHOT
-```
+Read [shell recipes](references/shell-recipes.md) for repository wiring, quoting, result handling,
+coroutine-owned cancellation and root refresh. Read [RootService integration](references/rootservice.md)
+only for Binder IPC. Read [dependencies and validation](references/dependencies-and-validation.md)
+for Maven Local, migrations, release verification or device acceptance.
 
-Add `mavenLocal()` scoped exclusively to that candidate coordinate/version and override the consumer dependency explicitly. Disable any Odin composite substitution while validating the Maven artifact. Verify `dependencyInsight` resolves the candidate; assemble and test the consumer. Restore/pin the Central release after publication. Existing Thor supports `-PodinLocalVersion=<candidate>` for this workflow.
+## Preserve lifecycle guarantees
 
-## Choose execution semantics
+- Nonzero exit is an ordinary command result. `ShellResult.JOB_NOT_EXECUTED` (-1) is transport
+  failure and may follow side effects. Never replay an uncertain mutation automatically.
+- Legacy `await()`/`asFlow()` cancellation stops observation, not execution. Persistent jobs keep
+  the queue until drain completes. Do not promise termination from coroutine timeout.
+- An isolated handle identifies one execution. `submit()` commits once; `cancel()` is idempotent
+  while pending. Cancel before dispatch prevents execution. Running cancellation uses TERM then
+  KILL, with a five-second control deadline. Await acknowledgement before releasing an owned lease.
+- Branch on `JobOutcome.kind` (`EXITED`, `CANCELLED`, `FAILED`, `TERMINATION_UNCONFIRMED`) and retain
+  `started`, nullable `exitCode`, `terminationConfirmed`, `outputDrained`, `shellReusable`, and
+  failure detail. Uncertain termination must not become ordinary success or a proven rollback.
+- Isolated cancellation covers descendants remaining in the job process group; deliberately
+  detached/process-group-changing descendants need their own contract. Surviving same-group
+  children are retired after normal exit too. Nested toybox `timeout` must use `--foreground`.
+- Commands share state within an isolated job and inherit cwd/exported environment. Their changes
+  never persist into later jobs; functions and unexported state are not inherited. Output uses
+  private cache files and is returned as lists; bound output and lifetime for this API.
+- Isolation requires toybox `setsid -w` and a fresh control shell with matching root identity.
+  An existing root shell can survive policy denial while fresh control acquisition fails before
+  user dispatch. Do not weaken the authority check or fall back by replaying a mutation.
 
-- `ShellRepository.exec(vararg commands)` returns `ShellResult(code, stdout, stderr)`, with one combined output and the last-command exit code. Nonzero command exit is an ordinary result. `JOB_NOT_EXECUTED` (-1) indicates transport failure and may occur after side effects; never assume a failed transport proves no mutation happened. `CancellationException` propagates.
-- Legacy `Shell.Job.await()` and `asFlow()` cancellation stops waiting/collection; it does not terminate the command. The shared shell stays occupied until execution/drain finishes. `asFlow()` emits tagged `ShellLine`s and uses an unlimited channel; do not use it for an unbounded stream without an explicit lifetime and memory plan.
-- Legacy jobs run in the persistent shell: `cd`, exports, functions and sourced scripts can affect later jobs; top-level `exit` kills that shell.
-- Opt-in `shell.prepareIsolatedJob(*commands)` prepares a single-use `JobHandle`; `submit()` commits it once. `shell.submitIsolated(*commands)` combines both. Commands share state within that job, inherit cwd/exported environment, and do not mutate the persistent shell state. Functions and other unexported state are not inherited. Output is captured to temporary files and delivered at completion; this is not a streaming API.
-- Isolated jobs require Android toybox `setsid -w` and a separately acquired control shell with matching root identity. Control acquisition can be denied even when the original root shell remains alive. In that case user work is not dispatched.
+## Interpret root and startup accurately
 
-## Cancellation and acknowledgement
+`Shell.isRoot` describes existing identity; `Shell.isAppGrantedRoot` is a cached observation.
+Neither proves the manager permits fresh requests. Explicit invalidation marks caches stale
+without interrupting accepted work. `refreshRootAvailability()` gracefully retires main-shell
+work (five-second BUSY bound), then acquires a fresh ready shell; concurrent requests share an
+attempt. `ROOT`/`NON_ROOT` describe acquisition; `BUSY`/`TIMED_OUT`/`FAILED` do not prove denial.
+Do not declare revocation from arbitrary command failure or a permission-denied payload.
 
-```kotlin
-import com.valhalla.superuser.ktx.await
-import com.valhalla.superuser.ktx.getShellAwait
+Startup publishes only after handshake/initializers complete under one builder deadline.
+Initializers must cooperate with interruption; arbitrary non-cooperative application code cannot
+be forcibly stopped safely. One cancelled waiter does not cancel shared startup or refresh.
 
-val shell = getShellAwait()
-val handle = shell.prepareIsolatedJob("your bounded command")
-handle.submit()
-// Another owner can call handle.cancel(). Awaiting coroutine cancellation alone does not do so.
-val outcome = handle.await()
-```
-
-A handle identifies one execution, not a reusable command builder. Cancel before submission or while queued guarantees it never starts. Cancel during execution requests TERM, then KILL escalation, with a bounded control deadline. `cancel()` is idempotent while pending; await `completion` (Java CompletionStage) or `await()` before releasing a consumer lease.
-
-Branch on `JobOutcome.kind`: `EXITED`, `CANCELLED`, `FAILED`, `TERMINATION_UNCONFIRMED`. Check `terminationConfirmed`, `outputDrained`, `shellReusable`, `started` and nullable `exitCode`; preserve failure details without logging payloads. Confirmed termination covers processes that remain in the job process group. Deliberately detached descendants are outside the guarantee. Odin retires same-group children after normal parent exit too. Cancel does not undo settings, filesystem or other side effects; never automatically retry uncertain mutations.
-
-If a calling coroutine owns the job lifetime, explicitly request cancellation in its catch/finally and await acknowledgement under `NonCancellable`. Preserve the original cancellation. If acknowledgement is uncertain, surface that state and do not silently release a lease as if the command succeeded. Keep existing process watchdogs until the relevant device/root-manager acceptance checks justify removal.
-
-## Root refresh and startup
-
-`Shell.isRoot` describes the cached shell identity; it does not prove current root-manager policy permits new requests. `Shell.isAppGrantedRoot` is a cached observation too. `Shell.invalidateRootAvailability()` marks observations stale without interrupting accepted work. Coroutine `refreshRootAvailability()` returns a fresh `RootAvailability`; the blocking companion method is for Java/worker callers.
-
-Refresh gracefully retires accepted main-shell work, then makes a fresh acquisition. `ROOT` and `NON_ROOT` describe the acquired shell; `BUSY`, `TIMED_OUT` and `FAILED` must not be presented as proven denial. Concurrent requests share an attempt. A denied new request does not revoke the UID of an existing shell. Preserve the app's provider selection/fallback rules. Do not infer loss of root from an arbitrary nonzero exit or permission-denied payload.
-
-Startup publishes the shell only after handshake and initializers complete. One caller cancelling its await does not stop a shared attempt. Initializers must cooperate with deadlines; arbitrary blocking application code cannot be force-stopped safely. Never perform blocking shell acquisition/exec on the UI thread.
-
-## RootService
-
-Subclass `RootService`, return an AIDL Stub from `onBind`, declare the service non-exported, and call `enforceCaller()` in privileged AIDL methods. Bind/unbind according to the existing application lifecycle; `stop()` tears down the service process. RootService is separate from Shell.Job cancellation and does not return ShellResult automatically. Follow the resolved version's RootService signatures and `docs/USAGE.md` examples.
-
-## Evidence before adoption
-
-Test real application/gateway authority. Use disposable commands with submission/process markers and verify next-job output isolation, queued cancellation, ignored TERM, surviving children, shell death, refresh and startup cleanup. Record SHA, artifact version, API/root manager, passed/failed/skipped counts and unsupported cases. A skipped opt-in test is not a pass. Publish to Central only when the user has authorized release and the required gates pass; this skill does not itself authorize publication.
-
-Nested watchdogs such as toybox `timeout` must use `--foreground` inside isolated jobs: the default
-creates a new process group and moves helpers outside Odin cancellation scope. Commands that
-explicitly detach or change process group require their own termination contract.
+Complete the integration and report resolved version/source, validation results and device limits.
+Skill use does not expand the user's task into publishing a library or releasing their app;
+retain existing authorization when publication is already part of the task.

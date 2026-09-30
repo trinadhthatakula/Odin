@@ -1,0 +1,4 @@
+interface:
+  display_name: "Odin Android integration"
+  short_description: "Integrate Odin root shells and RootService IPC"
+  default_prompt: "Use $odin to integrate Odin into this Android app, preserving its privilege routing and command lifetimes."

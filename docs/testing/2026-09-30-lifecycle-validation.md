@@ -25,4 +25,41 @@ Observed failures and corrections:
 
 Limits: deliberately detached/process-group-changing descendants and non-cooperative application initializer code are outside the termination guarantee. Isolated output is completion-only private-file capture. No claim of every root manager/device being validated. Keep Thor watchdogs as defense in depth. Settings Editor journal/recovery UI remains Thor-owned follow-up work.
 
-Central consumer verification will be recorded after publication. Publication must use the GitHub production workflow after the required gates pass.
+## Published artifact and consumer verification
+
+- Odin PR [#15](https://github.com/trinadhthatakula/Odin/pull/15) merged at
+  `1741da74bd0154d984eb780b2cbd1a02b0d3e1ac`. The production
+  [publish workflow](https://github.com/trinadhthatakula/Odin/actions/runs/36731950210) succeeded.
+- Central POM and AAR for `com.trinadhthatakula:odin:1.1.0` fetched successfully. AAR SHA-256:
+  `1547ad1385572cab19c00ba118139fd0b76c740dd2095ff18ee6156b9ba2fc45`.
+- Thor topic commit `21f0d5597e0e7839e38d2d4afed2854eb7b6f96e`, PR
+  [#531](https://github.com/trinadhthatakula/Thor/pull/531), resolves Central 1.1.0 with no Maven Local
+  override or composite substitution. `test lintFossDebug lintStoreRelease :app:assembleFossDebug
+  :app:assembleFossDebugAndroidTest` passed: 6,214 tests, zero failures/errors/skips; both lint reports
+  have zero errors/warnings. Existing compiler warnings remain separate from Android lint.
+- After host reboot, the dedicated Magisk emulator booted with SDK full 36.1, SELinux enforcing
+  and shell-UID adbd. Central-built Thor passed 10/10 lifecycle tests, 1/1 Settings Editor deadline
+  test, and 1/1 automated Magisk deny/re-grant policy test. Policy harness restored grant/adbd.
+- The first Thor CI attempt ran before Central propagation and failed solely to resolve Odin 1.1.0.
+  Its failed job was rerun after artifact availability; no local repository fallback was added to CI.
+- New raw consumer logs are retained under the separate Thor checkout's ignored
+  `build/odin-validation/` folder. Earlier `/tmp` logs were cleared by the power interruption;
+  their recorded results above remain historical evidence.
+
+## Portable integration skill verification
+
+- Canonical `.claude/skills/odin/` now includes shell recipes, RootService and dependency/validation
+  references, plus Codex display metadata. Full package installed and byte-verified in Codex,
+  Claude, shared `.agents` and both configured Gemini roots; automatic discovery stays enabled.
+- Skill frontmatter validator passed. Kotlin/AIDL examples were compiled against Central 1.1.0
+  in an isolated generated Android app, in debug and minified release. The compile check caught
+  an AndroidX `@Keep` dependency prerequisite, now documented explicitly.
+- Minified sample ran through application-authorized Magisk root (ordinary app UID 10227):
+  RootService returned UID0, repository query returned code0, isolated quoted apostrophe/space
+  data round-tripped, outcome was EXITED and fresh refresh ROOT. No manifest service declaration
+  was needed; app-owned reflective class/constructor survived R8 via `@Keep`.
+- Corrected usage docs/skill: RootService extends ContextWrapper and uses Odin binding; stop
+  addresses a service and the server exits when no active services remain. This verifies the sample
+  integration path, not every production IPC ownership, death or caller-rejection scenario.
+- Generated sample/build evidence is ignored under Odin's `build/skill-validation/`; no sample
+  mutation or release is added to Thor's original checkout.
