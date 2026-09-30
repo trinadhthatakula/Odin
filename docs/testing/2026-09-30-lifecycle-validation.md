@@ -39,7 +39,8 @@ Limits: deliberately detached/process-group-changing descendants and non-coopera
   have zero errors/warnings. Existing compiler warnings remain separate from Android lint.
 - After host reboot, the dedicated Magisk emulator booted with SDK full 36.1, SELinux enforcing
   and shell-UID adbd. Central-built Thor passed 10/10 lifecycle tests, 1/1 Settings Editor deadline
-  test, and 1/1 automated Magisk deny/re-grant policy test. Policy harness restored grant/adbd.
+  test, 1/1 automated Magisk deny/re-grant policy test, and 1/1 disposable Settings Editor round
+  trip with cleanup/restoration. Policy harness restored grant/adbd.
 - The first Thor CI attempt ran before Central propagation and failed solely to resolve Odin 1.1.0.
   Its failed job was rerun after artifact availability; no local repository fallback was added to CI.
 - New raw consumer logs are retained under the separate Thor checkout's ignored
