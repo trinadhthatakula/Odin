@@ -6,11 +6,11 @@ Kotlin-first root shell + `RootService` IPC for Android — inspired by [topjohn
 
 ```kotlin
 dependencies {
-    implementation("com.trinadhthatakula:odin:1.0.0")
+    implementation("com.trinadhthatakula:odin:1.1.0")
 }
 ```
 
-Requires `minSdk 24`. Will be published to Maven Central from `1.0.0`.
+Requires `minSdk 24`. Published through Maven Central.
 
 ## Usage
 
@@ -39,6 +39,16 @@ if (shell.isRootGranted()) {
 
 - A persistent root shell with a coroutine-friendly API (`suspend` command execution, `Flow` of output).
 - A generic `RootService` framework (Binder/AIDL) for running privileged code in a root process.
+
+## Isolated cancellation and fresh root checks
+
+Odin 1.1 adds `Shell.prepareIsolatedJob()` / `submitIsolated()`, an idempotent cancellation handle,
+termination acknowledgement, and `refreshRootAvailability()`. Existing persistent jobs retain their
+shell-state and coroutine-cancellation semantics. See [lifecycle usage](docs/USAGE.md#isolated-jobs-and-cancellation)
+for termination scope, output behavior, and root-refresh outcomes.
+
+Agents integrating Odin can use [.claude/skills/odin/SKILL.md](.claude/skills/odin/SKILL.md).
+Run `python3 scripts/install-integration-skill.py` to install it into common agent skill directories.
 
 ## License
 

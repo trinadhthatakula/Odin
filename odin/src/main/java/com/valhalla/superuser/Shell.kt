@@ -4,6 +4,7 @@ package com.valhalla.superuser
 
 import androidx.annotation.IntDef
 import com.valhalla.superuser.internal.BuilderImpl
+import com.valhalla.superuser.internal.ShellImpl
 import com.valhalla.superuser.internal.MainShell
 import com.valhalla.superuser.internal.UiThreadHandler
 import com.valhalla.superuser.internal.Utils
@@ -90,6 +91,18 @@ public abstract class Shell : Closeable {
      */
     public abstract fun newJob(): Job
 
+    /**
+     * Prepare a cancellable process-group job without submitting it. Requires Android toybox setsid.
+     * Inherits cwd and exported environment; shell functions and state mutations do not cross jobs.
+     * Deliberately detached descendants are outside its termination scope. Raw [Task]s and legacy
+     * [Job]s retain their persistent-shell behavior.
+     */
+    public fun prepareIsolatedJob(vararg commands: String): JobHandle =
+        JobHandle(this as ShellImpl, commands)
+
+    /** Prepare and submit an isolated execution. */
+    public fun submitIsolated(vararg commands: String): JobHandle = prepareIsolatedJob(*commands).submit()
+
     @get:Status
     public abstract val status: Int
 
@@ -174,11 +187,12 @@ public abstract class Shell : Closeable {
         public abstract fun setFlags(@ConfigFlags flags: Int): Builder
 
         /**
-         * Set the maximum time to wait for shell verification.
+         * Set the overall shell initialization deadline (acquisition, handshake and initializers).
          *
          *
-         * After the timeout occurs and the shell still has no response,
-         * the shell process will be force-closed and throw [NoShellException].
+         * On expiry Odin destroys owned processes and fails with [NoShellException].
+         * Application initializers must cooperate with interruption; arbitrary Java code cannot
+         * be forcibly stopped safely.
          * @param timeout the maximum time to wait in seconds.
          * The default timeout is 20 seconds.
          * @return this Builder object for chaining of calls.
@@ -464,6 +478,18 @@ public abstract class Shell : Closeable {
     }
 
     public companion object {
+        /** Mark root availability stale. Does not interrupt accepted work or revoke an existing UID. */
+        @JvmStatic
+        public fun invalidateRootAvailability(): Unit = MainShell.invalidate()
+
+        /**
+         * Blocking fresh acquisition after graceful retirement. Concurrent calls share one attempt.
+         * BUSY means accepted work prevented retirement; no unrelated command is killed or replayed.
+         * Use the suspend ktx refreshRootAvailability from coroutines.
+         */
+        @JvmStatic
+        public fun refreshRootAvailability(): RootAvailability = MainShell.refresh()
+
         /**
          * Shell status: Unknown. One possible result of [.getStatus].
          *

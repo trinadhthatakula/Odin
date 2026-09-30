@@ -168,6 +168,9 @@ internal object Utils {
     }
 
     @Synchronized
+    fun invalidateRootState() { currentRootState = -1 }
+
+    @Synchronized
     @JvmStatic
     fun setConfirmedRootState(value: Boolean) {
         currentRootState = if (value) 2 else 0

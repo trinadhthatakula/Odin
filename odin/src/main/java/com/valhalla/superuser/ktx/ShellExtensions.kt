@@ -86,3 +86,26 @@ public suspend fun getShellAwait(): Shell = suspendCancellableCoroutine { cont -
         }
     )
 }
+/** Await an isolated execution without implicitly requesting termination on coroutine cancellation. */
+public suspend fun com.valhalla.superuser.JobHandle.await(): com.valhalla.superuser.JobOutcome =
+    suspendCancellableCoroutine { continuation ->
+        completion.whenComplete { outcome, failure ->
+            if (continuation.isActive) {
+                if (failure != null) continuation.resumeWithException(failure)
+                else continuation.resume(outcome)
+            }
+        }
+    }
+
+/** Fresh authorization/acquisition probe; cancellation stops waiting, not the shared refresh. */
+public suspend fun refreshRootAvailability(): com.valhalla.superuser.RootAvailability =
+    suspendCancellableCoroutine { continuation ->
+        com.valhalla.superuser.internal.StartupAttempt.executor.execute {
+            try {
+                val observation = Shell.refreshRootAvailability()
+                if (continuation.isActive) continuation.resume(observation)
+            } catch (failure: Exception) {
+                if (continuation.isActive) continuation.resumeWithException(failure)
+            }
+        }
+    }

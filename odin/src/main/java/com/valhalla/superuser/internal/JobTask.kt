@@ -14,6 +14,8 @@ import java.util.concurrent.Executor
 import java.util.concurrent.FutureTask
 
 internal abstract class JobTask : Shell.Job(), Shell.Task {
+    internal var abortTransport: () -> Unit = {}
+    internal var readersStopped = false
     private val sources: MutableList<ShellInputSource> = ArrayList()
     private var out: MutableList<String?>? = null
     private var err: MutableList<String?>? = UNSET_LIST
@@ -55,8 +57,9 @@ internal abstract class JobTask : Shell.Job(), Shell.Task {
             errList = list
         }
 
-        val outGobbler = FutureTask(OUT(stdout, outList))
-        val errGobbler = FutureTask(ERR(stderr, errList))
+        val readers = java.util.concurrent.CountDownLatch(2)
+        val outGobbler = FutureTask<Int?> { try { OUT(stdout, outList).call() } finally { readers.countDown() } }
+        val errGobbler = FutureTask<Void?> { try { ERR(stderr, errList).call() } finally { readers.countDown() } }
         Shell.EXECUTOR.execute(outGobbler)
         Shell.EXECUTOR.execute(errGobbler)
 
@@ -80,6 +83,15 @@ internal abstract class JobTask : Shell.Job(), Shell.Task {
             Utils.err(e)
         }
 
+        if (result.code < 0) {
+            abortTransport()
+            outGobbler.cancel(true)
+            errGobbler.cancel(true)
+        }
+        readersStopped = try { readers.await(2, java.util.concurrent.TimeUnit.SECONDS) } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
+        }
         close()
         setResult(result)
     }

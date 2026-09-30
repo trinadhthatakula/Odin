@@ -1,6 +1,5 @@
 package com.valhalla.superuser.internal
 
-import android.text.TextUtils
 import com.valhalla.superuser.Shell
 import com.valhalla.superuser.ShellUtils.cleanInputStream
 import com.valhalla.superuser.ShellUtils.escapedString
@@ -22,7 +21,7 @@ import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.Volatile
 
-internal class ShellImpl(builder: BuilderImpl, private val process: Process) : Shell() {
+internal class ShellImpl(private val builder: BuilderImpl, private val process: Process) : Shell() {
     @Volatile
     override var status: Int
         private set
@@ -36,6 +35,7 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
     private val idle: Condition = scheduleLock.newCondition()
     private val tasks = ArrayDeque<Task?>()
     private var isRunningTask = false
+    private var retiring = false
 
     private class SyncTask(private val condition: Condition) : Task {
         private var set = false
@@ -47,10 +47,7 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
 
         fun await() {
             while (!set) {
-                try {
-                    condition.await()
-                } catch (_: InterruptedException) {
-                }
+                condition.await()
             }
         }
 
@@ -84,18 +81,22 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
         }
     }
 
+    private val released = java.util.concurrent.atomic.AtomicBoolean()
+
     init {
         status = UNKNOWN
         stdIn = NoCloseOutputStream(process.outputStream)
         stdOut = NoCloseInputStream(process.inputStream)
         stdErr = NoCloseInputStream(process.errorStream)
 
+        StartupAttempt.current.get()?.own { release() }
+
         // Shell checks might get stuck indefinitely
         val check = FutureTask<Int?> { this.shellCheck() }
-        EXECUTOR.execute(check)
+        StartupAttempt.executor.execute(check)
         try {
             try {
-                status = check.get(builder.timeout, TimeUnit.SECONDS)!!
+                status = check.get(StartupAttempt.current.get()?.remainingNanos() ?: TimeUnit.SECONDS.toNanos(builder.timeout), TimeUnit.NANOSECONDS)!!
             } catch (e: ExecutionException) {
                 val cause = e.cause
                 if (cause is IOException) {
@@ -109,6 +110,7 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
                 throw IOException("Shell check interrupted", e)
             }
         } catch (e: IOException) {
+            check.cancel(true)
             release()
             throw e
         }
@@ -132,14 +134,13 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
             stdIn.write(("echo SHELL_TEST\n").toByteArray(StandardCharsets.UTF_8))
             stdIn.flush()
             var s = br.readLine()
-            if (TextUtils.isEmpty(s) || !s!!.contains("SHELL_TEST")) throw IOException("Created process is not a shell")
+            if (s.isNullOrEmpty() || !s.contains("SHELL_TEST")) throw IOException("Created process is not a shell")
 
             stdIn.write(("id\n").toByteArray(StandardCharsets.UTF_8))
             stdIn.flush()
             s = br.readLine()
-            if (!TextUtils.isEmpty(s) && s.contains("uid=0")) {
+            if (!s.isNullOrEmpty() && s.contains("uid=0")) {
                 status = ROOT_SHELL
-                Utils.setConfirmedRootState(true)
                 // noinspection ConstantConditions
                 val cwd = escapedString(System.getProperty("user.dir") ?: "/")
                 stdIn.write(("cd $cwd\n").toByteArray(StandardCharsets.UTF_8))
@@ -151,19 +152,12 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
 
     private fun release() {
         status = UNKNOWN
-        try {
-            stdIn.close0()
-        } catch (_: IOException) {
-        }
-        try {
-            stdErr.close0()
-        } catch (_: IOException) {
-        }
-        try {
-            stdOut.close0()
-        } catch (_: IOException) {
-        }
-        process.destroy()
+        if (!released.compareAndSet(false, true)) return
+        // Destroy first: stream close/flush may itself wait on a blocked writer or reader.
+        if (android.os.Build.VERSION.SDK_INT >= 26) process.destroyForcibly() else process.destroy()
+        StartupAttempt.executor.execute { runCatching { stdIn.close0() } }
+        StartupAttempt.executor.execute { runCatching { stdErr.close0() } }
+        StartupAttempt.executor.execute { runCatching { stdOut.close0() } }
     }
 
     @Throws(InterruptedException::class)
@@ -221,6 +215,7 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
             return
         }
 
+        if (task is JobTask) task.abortTransport = { close() }
         task.run(stdIn, stdOut, stdErr)
     }
 
@@ -263,6 +258,7 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
     override fun submitTask(task: Task) {
         scheduleLock.lock()
         try {
+            if (retiring) { task.shellDied(); return }
             tasks.offer(task)
             if (!isRunningTask) {
                 isRunningTask = true
@@ -277,18 +273,45 @@ internal class ShellImpl(builder: BuilderImpl, private val process: Process) : S
     override fun execTask(task: Task) {
         scheduleLock.lock()
         try {
+            if (retiring) { task.shellDied(); return }
             if (isRunningTask) {
                 val sync = SyncTask(scheduleLock.newCondition())
                 tasks.offer(sync)
                 // Wait until it's our turn
-                sync.await()
+                try {
+                    sync.await()
+                } catch (failure: InterruptedException) {
+                    if (!tasks.remove(sync)) processNextTask(true)
+                    Thread.currentThread().interrupt()
+                    throw IOException("Interrupted while waiting for shell", failure)
+                }
             }
             isRunningTask = true
         } finally {
             scheduleLock.unlock()
         }
-        exec0(task)
-        processNextTask(true)
+        try { exec0(task) } finally { processNextTask(true) }
+    }
+
+    fun retire(timeout: Long, unit: TimeUnit): Boolean {
+        scheduleLock.lock()
+        try {
+            retiring = true
+            var remaining = unit.toNanos(timeout)
+            while (isRunningTask) {
+                if (remaining <= 0) return false
+                remaining = idle.awaitNanos(remaining)
+            }
+            close()
+            return true
+        } finally { scheduleLock.unlock() }
+    }
+
+    fun buildControlShell(): ShellImpl = builder.controlCopy().build().also {
+        if (it.isRoot != isRoot) {
+            it.close()
+            throw IOException("Cancellation control shell has different root authority")
+        }
     }
 
     override fun newJob(): Job {

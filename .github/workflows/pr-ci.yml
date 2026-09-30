@@ -27,5 +27,5 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Assemble + API check
-        run: ./gradlew :odin:assembleRelease :odin:apiCheck --stacktrace
+      - name: Unit tests, lint, release assembly and API check
+        run: ./gradlew :odin:testDebugUnitTest :odin:lintDebug :odin:assembleRelease :odin:apiCheck --stacktrace
