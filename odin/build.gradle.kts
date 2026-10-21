@@ -70,8 +70,8 @@ val bcvApiFileName = "odin.api"
 // Kotlin — so we add it explicitly. Keep the metadata version in sync with the Kotlin compiler
 // AGP bundles (AGP 9.3.0 -> Kotlin 2.2.10) so the ABI reader parses @Metadata correctly.
 val bcvWorkerClasspath: Configuration = configurations.detachedConfiguration(
-    dependencies.create("org.ow2.asm:asm:9.11"),
-    dependencies.create("org.ow2.asm:asm-tree:9.11"),
+    dependencies.create("org.ow2.asm:asm:9.11.1"),
+    dependencies.create("org.ow2.asm:asm-tree:9.11.1"),
     dependencies.create("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.21"),
 )
 
